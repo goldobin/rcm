@@ -1,0 +1,69 @@
+commands:
+- format: "create <cluster-name>"
+  desc: Creates the new cluster with given
+
+  options:
+    - flags: -n <number-of-nodes>, --nodes=<number-of-nodes>
+      default: 6
+
+    - flags: --driver <local | docker>
+      default: local
+
+    - flags: --local-listen=<ip>
+      default: 127.0.0.1
+
+- format: remove <cluster-name>
+  desc: Removes specified cluster
+
+- format: list
+  desc: Prints the list of clusters
+
+- format: start <cluster-name>
+
+- format: stop <cluster-name>
+
+- format: distribute-slots <cluster-name>
+  options:
+  - flags: -r <number-of-replicas>, --replicas=<number-of-replicas>
+
+- format: nodes [OPTIONS] <cluster-name>
+  options:
+  - flags: -m, --masters
+    default: enabled
+
+  - flags: -s, --slaves
+    default: enabled
+
+  - flags: -c, --count
+    desc: Display only nodes count
+    default: disabled
+
+- format: cli <cluster-name> [REDIS_CLI_OPTIONS]
+  desc: |
+    Open a redis-cli session with random node. Options are standard
+    redis-cli options except those related with connection
+
+- format: damage [OPTIONS] <cluster-name>
+  desc: Randomily stops nodes in cluster
+  options: 
+    - flags: -c <node-count>
+      desc: The amount of nodes to stop
+      default: 33% of total nodes
+
+    - flags: -m, --masters
+      desc: Stops masters
+
+    - flags: -s, --slaves
+      desc: Stops slaves
+
+    - flags: -k, --kill
+      desc: "Stop nodes with KILL signal"
+
+- format: repair <cluster-name>
+  desc: Tries to start nodes which are down
+
+
+
+
+
+
