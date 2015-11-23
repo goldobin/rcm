@@ -9,18 +9,8 @@ import (
 )
 
 type ClusterConf struct {
-	ListenHost   string
-	Ports        []int
-	ReplicaCount int
-}
-
-type RedisNodeConf struct {
-	ListenHost  string
-	ListenPort  int
-	Persistence bool
-	DataDir     string
-	PidFile     string
-	LogFile     string
+	ListenHost string
+	Ports      []int
 }
 
 func LoadClusterConf(fileName string) (r *ClusterConf, err error) {
@@ -50,6 +40,15 @@ func SaveClusterConf(fileName string, conf *ClusterConf) (err error) {
 	}
 
 	return ioutil.WriteFile(fileName, data, 0644)
+}
+
+type RedisNodeConf struct {
+	ListenHost  string
+	ListenPort  int
+	Persistence bool
+	DataDir     string
+	PidFile     string
+	LogFile     string
 }
 
 func SaveRedisConf(fileName string, conf *RedisNodeConf) (err error) {

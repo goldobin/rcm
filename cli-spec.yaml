@@ -1,13 +1,12 @@
 commands:
-- format: "create <cluster-name>"
-  desc: Creates the new cluster with given
-
+- format: create <cluster-name>
+  desc: Create new cluster with
   options:
-    - flags: -n <number-of-nodes>, --nodes=<number-of-nodes>
-      default: 6
-
     - flags: --driver <local | docker>
       default: local
+
+    - flags: -n <number-of-nodes>, --nodes=<number-of-nodes>
+      default: 6
 
     - flags: --local-listen=<ip>
       default: 127.0.0.1
@@ -25,6 +24,8 @@ commands:
 - format: distribute-slots <cluster-name>
   options:
   - flags: -r <number-of-replicas>, --replicas=<number-of-replicas>
+
+  - flags: -m <number-of-masters>, --masters=<number-of-masters>
 
 - format: nodes [OPTIONS] <cluster-name>
   options:
@@ -56,8 +57,8 @@ commands:
     - flags: -s, --slaves
       desc: Stops slaves
 
-    - flags: -k, --kill
-      desc: "Stop nodes with KILL signal"
+    - flags: --kill
+      desc: Stop nodes with KILL signal
 
 - format: repair <cluster-name>
   desc: Tries to start nodes which are down
