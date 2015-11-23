@@ -17,7 +17,7 @@ type Clusters struct {
 
 func NewClusters(baseDir string) (result Clusters, err error) {
 
-	err = os.MkdirAll(baseDir, 750)
+	err = os.MkdirAll(baseDir, 0750)
 
 	if err != nil {
 		return
@@ -45,7 +45,7 @@ func (self Clusters) New(name string, conf ClusterConf) (result Cluster, err err
 		return
 	}
 
-	err = os.MkdirAll(self.clusterBaseDir(name), 750)
+	err = os.MkdirAll(self.clusterBaseDir(name), 0750)
 
 	if err != nil {
 		return
