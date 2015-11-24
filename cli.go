@@ -7,6 +7,9 @@ import (
 	"os"
 )
 
+const MaxTcpPort = 65535
+const RedisGossipPortIncrement = 10000
+
 var bold = color.New(color.Bold).SprintFunc()
 var green = color.New(color.FgGreen).SprintFunc()
 var red = color.New(color.FgRed).SprintFunc()
@@ -72,15 +75,57 @@ func main() {
 		cli.Command{
 			Name:  "create",
 			Usage: "Create a new cluster",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "listen, l",
+					Value: "127.0.0.1",
+					Usage: "listen on host for incomming connection (host to bind to)",
+				},
+				cli.IntFlag{
+					Name:  "nodes, n",
+					Value: 6,
+					Usage: "number of nodes to create",
+				},
+				cli.BoolFlag{
+					Name:  "persistance, s",
+					Usage: "enable persistance",
+				},
+				cli.IntFlag{
+					Name:  "start-port, p",
+					Value: 10001,
+					Usage: "port of the first node",
+				},
+			},
 			Action: func(c *cli.Context) {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
 				validate(!clusters.Exists(name), "Cluster with %s already exists", bold(name))
 
+				nodeCount := c.Int("nodes")
+				maxPort := MaxTcpPort - RedisGossipPortIncrement - nodeCount
+				startPort := c.Int("start-port")
+
+				validate(nodeCount > 1, "Cluster should have at least 2 nodes")
+
+				validate(
+					startPort > 0 && startPort < maxPort,
+					"Start port out of range of allowed ports (1-%s)",
+					maxPort)
+
 				echo("Creating cluster %s...", bold(name))
 
-				clusters.New(name, ClusterConf{ListenHost: "127.0.0.1", Ports: []int{6001, 6002}})
+				ports := make([]int, nodeCount)
+
+				for i := 0; i < nodeCount; i++ {
+					ports[i] = startPort + i
+				}
+
+				clusters.New(name, ClusterConf{
+					ListenHost:  c.String("listen"),
+					Ports:       ports,
+					Persistence: c.Bool("persistance"),
+				})
 			},
 		},
 		cli.Command{

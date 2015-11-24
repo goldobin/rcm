@@ -9,8 +9,9 @@ import (
 )
 
 type ClusterConf struct {
-	ListenHost string
-	Ports      []int
+	ListenHost  string `yaml:"bind"`
+	Ports       []int
+	Persistence bool
 }
 
 func LoadClusterConf(fileName string) (r *ClusterConf, err error) {
