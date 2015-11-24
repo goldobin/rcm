@@ -45,7 +45,7 @@ func echo(format string, args ...interface{}) {
 	fmt.Printf(format+"\n", args...)
 }
 
-func success(format string, args... interface{}) {
+func success(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
 
 	fmt.Printf("%s %s\n", green("OK "), message)
@@ -66,7 +66,7 @@ func failureCausedByError(err error) {
 
 func main() {
 
-	clusters, err := NewClustersInHomeDir()
+	clusterSet, err := NewClusterSetAtHomeDir()
 
 	if err != nil {
 		failureCausedByError(err)
@@ -74,14 +74,14 @@ func main() {
 
 	app := cli.NewApp()
 
-	app.Name = "rcm"
-	app.Usage = "Redis Cluster Manager"
+	app.Name = "Redis Cluster Manager"
+	app.Usage = ""
 	app.Version = "0.0.1"
 
 	app.Commands = []cli.Command{
 		cli.Command{
 			Name:  "create",
-			Usage: "Create a new cluster",
+			Usage: "Creates a new cluster",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "listen, l",
@@ -107,7 +107,7 @@ func main() {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(!clusters.Exists(name), "Cluster with %s already exists", bold(name))
+				validate(!clusterSet.Exists(name), "Cluster with %s already exists", bold(name))
 
 				nodeCount := c.Int("nodes")
 				maxPort := MaxTcpPort - RedisGossipPortIncrement - nodeCount
@@ -128,7 +128,7 @@ func main() {
 					ports[i] = startPort + i
 				}
 
-				clusters.New(name, ClusterConf{
+				clusterSet.Create(name, ClusterConf{
 					ListenHost:  c.String("listen"),
 					Ports:       ports,
 					Persistence: c.Bool("persistance"),
@@ -137,17 +137,17 @@ func main() {
 		},
 		cli.Command{
 			Name:  "remove",
-			Usage: "Remove existing cluster",
+			Usage: "Removes existing cluster",
 			Action: func(c *cli.Context) {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusters.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
 
 				if ask("Do you really want to remove cluster %s?", bold(name)) {
 					echo("Removing cluster %s...", bold(name))
 
-					err := clusters.Remove(name)
+					err := clusterSet.Remove(name)
 
 					if err != nil {
 						failure("Can't remove cluster %s", bold(name))
@@ -161,18 +161,18 @@ func main() {
 		},
 		cli.Command{
 			Name:  "start",
-			Usage: "Start the cluster",
+			Usage: "Starts the cluster",
 		},
 		cli.Command{
 			Name:  "stop",
-			Usage: "Stop the cluster",
+			Usage: "Stops the cluster",
 		},
 		cli.Command{
 			Name:  "list",
-			Usage: "List available clusters",
+			Usage: "Lists available clusters",
 			Action: func(c *cli.Context) {
 
-				names := clusters.ListNames()
+				names := clusterSet.ListNames()
 
 				for _, name := range names {
 					echo(name)
@@ -181,11 +181,11 @@ func main() {
 		},
 		cli.Command{
 			Name:  "nodes",
-			Usage: "List nodes in cluster",
+			Usage: "Lists nodes in cluster",
 		},
 		cli.Command{
 			Name:  "cli",
-			Usage: "Open a redis-cli session with random node",
+			Usage: "Opens a redis-cli session with random node",
 		},
 	}
 

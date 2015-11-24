@@ -14,6 +14,8 @@ type ClusterConf struct {
 	Persistence bool
 }
 
+//func NewClusterConf(listenHost string, ports []int, persistance bool) ClusterConf
+
 func LoadClusterConf(fileName string) (r *ClusterConf, err error) {
 
 	data, err := ioutil.ReadFile(fileName)
