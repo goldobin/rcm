@@ -38,22 +38,29 @@ func validate(condition bool, format string, args ...interface{}) {
 		return
 	}
 
-	fatal(format, args...)
+	failure(format, args...)
 }
 
 func echo(format string, args ...interface{}) {
 	fmt.Printf(format+"\n", args...)
 }
 
-func fatal(format string, args ...interface{}) {
+func success(format string, args... interface{}) {
 	message := fmt.Sprintf(format, args...)
 
-	fmt.Printf("%s %s\n", red("ERROR"), message)
+	fmt.Printf("%s %s\n", green("OK "), message)
 	os.Exit(0)
 }
 
-func fatalError(err error) {
-	fmt.Printf("%s %s\n", red("ERROR"), err)
+func failure(format string, args ...interface{}) {
+	message := fmt.Sprintf(format, args...)
+
+	fmt.Printf("%s %s\n", red("ERR"), message)
+	os.Exit(0)
+}
+
+func failureCausedByError(err error) {
+	fmt.Printf("%s %s\n", red("ERR"), err)
 	os.Exit(0)
 }
 
@@ -62,7 +69,7 @@ func main() {
 	clusters, err := NewClustersInHomeDir()
 
 	if err != nil {
-		fatalError(err)
+		failureCausedByError(err)
 	}
 
 	app := cli.NewApp()
@@ -135,9 +142,18 @@ func main() {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusters.Exists(name), "Cluster with %s does not exists", bold(name))
 
-				if ask("Do you really want to remove cluster %s", bold(name)) {
-					echo("Removing cluster %s", bold(name))
+				if ask("Do you really want to remove cluster %s?", bold(name)) {
+					echo("Removing cluster %s...", bold(name))
+
+					err := clusters.Remove(name)
+
+					if err != nil {
+						failure("Can't remove cluster %s", bold(name))
+					} else {
+						success("Cluster %s has been successfully removed", bold(name))
+					}
 				} else {
 					echo("Aborted.")
 				}

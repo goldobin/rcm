@@ -92,7 +92,7 @@ func (self Clusters) Open(name string) (result Cluster, err error) {
 }
 
 func (self Clusters) Remove(name string) error {
-	return nil
+	return os.RemoveAll(self.clusterBaseDir(name))
 }
 
 func (self Clusters) ListNames() (result []string) {
