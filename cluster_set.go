@@ -58,6 +58,7 @@ func (self ClusterSet) Create(name string, conf ClusterConf) (result Cluster, er
 	}
 
 	result = NewCluster(self.clusterBaseDir(name), conf)
+	result.CreateNodes()
 
 	return
 }
@@ -80,11 +81,7 @@ func (self ClusterSet) Open(name string) (result Cluster, err error) {
 		return
 	}
 
-	result = Cluster{
-		baseDir: self.clusterBaseDir(name),
-		conf:    *conf,
-	}
-
+	result = NewCluster(self.clusterBaseDir(name), *conf)
 	return
 }
 

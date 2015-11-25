@@ -162,10 +162,28 @@ func main() {
 		cli.Command{
 			Name:  "start",
 			Usage: "Starts the cluster",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+
+				cluster, _ := clusterSet.Open(name)
+				cluster.Start()
+			},
 		},
 		cli.Command{
 			Name:  "stop",
 			Usage: "Stops the cluster",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+
+				cluster, _ := clusterSet.Open(name)
+				cluster.Stop()
+			},
 		},
 		cli.Command{
 			Name:  "list",
@@ -186,6 +204,15 @@ func main() {
 		cli.Command{
 			Name:  "cli",
 			Usage: "Opens a redis-cli session with random node",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+
+				cluster, _ := clusterSet.Open(name)
+				cluster.Cli()
+			},
 		},
 	}
 

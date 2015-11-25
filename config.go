@@ -83,9 +83,10 @@ func SaveRedisConf(fileName string, conf *RedisNodeConf) (err error) {
 		fmt.Fprintf(w, "logfile %s\n", conf.LogFile)
 	}
 
+	fmt.Fprintf(w, "dir %s\n", conf.DataDir)
+
 	if conf.Persistence {
 		w.WriteString("appendonly yes\n")
-		fmt.Fprintf(w, "dir %s\n", conf.DataDir)
 	} else {
 		w.WriteString("appendonly no\n")
 		w.WriteString("save \"\"\n")
