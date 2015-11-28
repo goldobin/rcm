@@ -1,7 +1,5 @@
 # Tasks
 
-Add validation of the cluster name on creation
-
 Implement `nodes` command
 
 Implement `distribute-slots` command

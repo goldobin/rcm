@@ -5,6 +5,7 @@ import (
 	"github.com/codegangsta/cli"
 	"github.com/fatih/color"
 	"os"
+	"regexp"
 )
 
 const MaxTcpPort = 65535
@@ -66,6 +67,7 @@ func failureCausedByError(err error) {
 
 func main() {
 
+	clusterNameRegEx := regexp.MustCompile(`^[\w+\-\.]+$`)
 	clusterSet, err := NewClusterSetAtHomeDir()
 
 	if err != nil {
@@ -107,6 +109,10 @@ func main() {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
+				validate(
+					clusterNameRegEx.MatchString(name),
+					"Illegal cluster name. The name should match %v",
+					clusterNameRegEx)
 				validate(!clusterSet.Exists(name), "Cluster with %s already exists", bold(name))
 
 				nodeCount := c.Int("nodes")
@@ -120,19 +126,29 @@ func main() {
 					"Start port out of range of allowed ports (1-%s)",
 					maxPort)
 
-				echo("Creating cluster %s...", bold(name))
+				listenAddress := c.String("listen")
 
 				ports := make([]int, nodeCount)
-
 				for i := 0; i < nodeCount; i++ {
 					ports[i] = startPort + i
 				}
 
-				clusterSet.Create(name, ClusterConf{
-					ListenHost:  c.String("listen"),
-					Ports:       ports,
-					Persistence: c.Bool("persistance"),
-				})
+				if ask(
+					"Create clustrer %s with %v nodes listening on %v:%v?",
+					bold(name),
+					nodeCount,
+					listenAddress,
+					ports) {
+					echo("Creating cluster %s...", bold(name))
+
+					clusterSet.Create(name, ClusterConf{
+						ListenHost:  listenAddress,
+						Ports:       ports,
+						Persistence: c.Bool("persistance"),
+					})
+				} else {
+					echo("Aborting.")
+				}
 			},
 		},
 		cli.Command{
