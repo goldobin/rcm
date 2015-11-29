@@ -103,7 +103,7 @@ func (self Node) Port() int {
 	return self.port
 }
 
-func (self Node) IsRunning() (result bool, err error) {
+func (self Node) IsUp() (result bool, err error) {
 	pid, err := self.Pid()
 
 	if err != nil {

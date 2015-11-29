@@ -10,10 +10,6 @@ Check process is actually running, and executable is a redis-server while determ
 
 Refactor commands: move to separate files, use factory
 
-Add running status of the cluster to the `list` output
-
-Add cluster nodes count info to the `list` output
-
 Add master/slave count info to the `list` output
 
 Implement cli command arguments to the redis-cli command
@@ -22,7 +18,7 @@ Implement `damage` command
  
 Implement `recover` command
 
-Implement bash completion
+Generate and try bash completion
 
 Migrate to git-hub
 
@@ -34,5 +30,5 @@ Add reasonable ENV vars to the commands
 
 Add specific redis version download (no redis pre-installation)
 
-
+Add global 'answer yes' flag
 
