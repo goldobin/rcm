@@ -14,6 +14,7 @@ const RedisGossipPortIncrement = 10000
 var bold = color.New(color.Bold).SprintFunc()
 var green = color.New(color.FgGreen).SprintFunc()
 var red = color.New(color.FgRed).SprintFunc()
+var yellow = color.New(color.FgYellow).SprintFunc()
 
 func first(args []string) string {
 	if len(args) > 0 {
@@ -185,6 +186,11 @@ func main() {
 				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
 
 				cluster, _ := clusterSet.Open(name)
+
+				if err != nil {
+					failure("Can't open cluster %s", bold(name))
+				}
+
 				cluster.Start()
 			},
 		},
@@ -198,6 +204,11 @@ func main() {
 				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
 
 				cluster, _ := clusterSet.Open(name)
+
+				if err != nil {
+					failure("Can't open cluster %s", bold(name))
+				}
+
 				cluster.Stop()
 			},
 		},
@@ -216,6 +227,36 @@ func main() {
 		cli.Command{
 			Name:  "nodes",
 			Usage: "Lists nodes in cluster",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+
+				cluster, err := clusterSet.Open(name)
+
+				if err != nil {
+					failure("Can't open cluster %s", bold(name))
+				}
+
+				for _, node := range cluster.Nodes() {
+					var state string
+
+					isRunning, err := node.IsRunning()
+
+					if err != nil {
+						state = red("ERROR")
+					} else {
+						if isRunning {
+							state = green("UP")
+						} else {
+							state = yellow("DOWN")
+						}
+					}
+
+					echo("%-15s %-5v %s", node.Ip(), node.Port(), state)
+				}
+			},
 		},
 		cli.Command{
 			Name:  "cli",

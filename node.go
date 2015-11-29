@@ -24,7 +24,7 @@ func NewNode(clusterBaseDir string, port int, clusterConf ClusterConf) Node {
 		port:         port,
 		confFilePath: path.Join(baseDir, "conf", "redis.conf"),
 		conf: RedisNodeConf{
-			ListenHost:  clusterConf.ListenHost,
+			ListenIp:    clusterConf.ListenHost,
 			ListenPort:  port,
 			Persistence: clusterConf.Persistence,
 			LogFile:     path.Join(baseDir, "var", "log", "redis.log"),
@@ -71,7 +71,7 @@ func (self Node) Cli() {
 		panic(err) // TODO: Make proper error handling
 	}
 
-	args := []string{"redis-cli", "-c", "-h", self.conf.ListenHost, "-p", strconv.Itoa(self.conf.ListenPort)}
+	args := []string{"redis-cli", "-c", "-h", self.conf.ListenIp, "-p", strconv.Itoa(self.conf.ListenPort)}
 
 	err = syscall.Exec(binary, args, os.Environ())
 
@@ -80,13 +80,38 @@ func (self Node) Cli() {
 	}
 }
 
-func (self Node) Pid() (pid int, err error) {
-	pidBytes, err := ioutil.ReadFile(self.conf.PidFile)
+func (self Node) Pid() (int, error) {
+	_, statErr := os.Stat(self.conf.PidFile)
+	if os.IsNotExist(statErr) {
+		return -1, nil
+	} else {
+		pidBytes, err := ioutil.ReadFile(self.conf.PidFile)
+
+		if err != nil {
+			return -1, err
+		}
+
+		return strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	}
+}
+
+func (self Node) Ip() string {
+	return self.conf.ListenIp
+}
+
+func (self Node) Port() int {
+	return self.port
+}
+
+func (self Node) IsRunning() (result bool, err error) {
+	pid, err := self.Pid()
 
 	if err != nil {
 		return
 	}
 
-	pid, err = strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	result = pid > 0
+
+	// TODO: Check also process running and is redis-server instance
 	return
 }

@@ -60,7 +60,7 @@ func TestSaveLoadClusterConf(t *testing.T) {
 func TestSaveNodeConf(t *testing.T) {
 	cases := []RedisNodeConf{
 		RedisNodeConf{
-			ListenHost:  "127.0.0.1",
+			ListenIp:    "127.0.0.1",
 			ListenPort:  6379,
 			Persistence: true,
 			DataDir:     "/tmp",
@@ -130,7 +130,7 @@ func TestSaveNodeConf(t *testing.T) {
 			expectedListenPortStr = ""
 		}
 
-		checkConfigParam("bind", conf.ListenHost)
+		checkConfigParam("bind", conf.ListenIp)
 		checkConfigParam("port", expectedListenPortStr)
 
 		checkConfigParam("dir", conf.DataDir)

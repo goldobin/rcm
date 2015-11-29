@@ -46,7 +46,7 @@ func SaveClusterConf(fileName string, conf *ClusterConf) (err error) {
 }
 
 type RedisNodeConf struct {
-	ListenHost  string
+	ListenIp    string
 	ListenPort  int
 	Persistence bool
 	DataDir     string
@@ -67,8 +67,8 @@ func SaveRedisConf(fileName string, conf *RedisNodeConf) (err error) {
 	w.WriteString("cluster-enabled yes\n")
 	w.WriteString("loglevel notice\n")
 
-	if len(conf.ListenHost) > 0 {
-		fmt.Fprintf(w, "bind %s\n", conf.ListenHost)
+	if len(conf.ListenIp) > 0 {
+		fmt.Fprintf(w, "bind %s\n", conf.ListenIp)
 	}
 
 	if conf.ListenPort > 0 {

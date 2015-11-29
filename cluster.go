@@ -28,6 +28,13 @@ func (self Cluster) CreateNodes() {
 	}
 }
 
+func (self Cluster) Nodes() []Node {
+	result := make([]Node, len(self.nodes))
+	copy(result, self.nodes)
+
+	return result
+}
+
 func (self Cluster) Start() {
 	for _, node := range self.nodes {
 		node.Start()

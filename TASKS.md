@@ -1,14 +1,14 @@
 # Tasks
 
-Implement `nodes` command
-
 Implement `distribute-slots` command
-
-Add running status of the node to the `nodes` output 
 
 Check all required executables present in the system on the start
 
 Implement proper error handling while running external processes
+
+Check process is actually running, and executable is a redis-server while determining is node running 
+
+Refactor commands: move to separate files, use factory
 
 Add running status of the cluster to the `list` output
 
