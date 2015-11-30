@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -10,8 +11,24 @@ import (
 	"syscall"
 )
 
+type NodeAddress struct {
+	Ip   string
+	Port int
+}
+
+func (self NodeAddress) String() string {
+	return fmt.Sprintf("%s:%v", self.Ip, self.Port)
+}
+
+func NewNodeAddress(ip string, port int) NodeAddress {
+	return NodeAddress{
+		Ip:   ip,
+		Port: port,
+	}
+}
+
 type Node struct {
-	port         int
+	address      NodeAddress
 	confFilePath string
 	conf         RedisNodeConf
 }
@@ -21,10 +38,10 @@ func NewNode(clusterBaseDir string, port int, clusterConf ClusterConf) Node {
 	baseDir := path.Join(clusterBaseDir, strconv.Itoa(port))
 
 	return Node{
-		port:         port,
+		address:      NewNodeAddress(clusterConf.ListenIp, port),
 		confFilePath: path.Join(baseDir, "conf", "redis.conf"),
 		conf: RedisNodeConf{
-			ListenIp:    clusterConf.ListenHost,
+			ListenIp:    clusterConf.ListenIp,
 			ListenPort:  port,
 			Persistence: clusterConf.Persistence,
 			LogFile:     path.Join(baseDir, "var", "log", "redis.log"),
@@ -95,12 +112,8 @@ func (self Node) Pid() (int, error) {
 	}
 }
 
-func (self Node) Ip() string {
-	return self.conf.ListenIp
-}
-
-func (self Node) Port() int {
-	return self.port
+func (self Node) Address() NodeAddress {
+	return self.address
 }
 
 func (self Node) IsUp() (result bool, err error) {

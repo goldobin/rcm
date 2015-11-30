@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strings"
 )
 
 const MaxTcpPort = 65535
@@ -140,7 +141,7 @@ func main() {
 					"Start port out of range of allowed ports (1-%s)",
 					maxPort)
 
-				listenAddress := c.String("listen")
+				listenIp := c.String("listen")
 
 				ports := make([]int, nodeCount)
 				for i := 0; i < nodeCount; i++ {
@@ -151,13 +152,13 @@ func main() {
 					"Create clustrer %s with %v nodes listening on %v:%v?",
 					bold(name),
 					nodeCount,
-					listenAddress,
+					listenIp,
 					ports) {
 					echo("Creating cluster %s...", bold(name))
 
 					clusterSet.Create(name, ClusterConf{
-						ListenHost:  listenAddress,
-						Ports:       ports,
+						ListenIp:    listenIp,
+						ListenPorts: ports,
 						Persistence: c.Bool("persistance"),
 					})
 				} else {
@@ -198,7 +199,7 @@ func main() {
 				validate(len(name) > 0, "Name of the cluster is required")
 				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
 
-				cluster, _ := clusterSet.Open(name)
+				cluster, err := clusterSet.Open(name)
 
 				if err != nil {
 					failure("Can't open cluster %s", bold(name))
@@ -216,13 +217,63 @@ func main() {
 				validate(len(name) > 0, "Name of the cluster is required")
 				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
 
-				cluster, _ := clusterSet.Open(name)
+				cluster, err := clusterSet.Open(name)
 
 				if err != nil {
 					failure("Can't open cluster %s", bold(name))
 				}
 
 				cluster.Stop()
+			},
+		},
+		cli.Command{
+			Name:  "distribute-slots",
+			Usage: "Distributes slots in cluster",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "replicas, r",
+					Value: 1,
+					Usage: "number of data replicas",
+				},
+			},
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+
+				cluster, err := clusterSet.Open(name)
+
+				if err != nil {
+					failure("Can't open cluster %s", bold(name))
+				}
+
+				replicas := c.Int("replicas")
+
+				validate(
+					replicas > 0 && replicas < cluster.NodesCount(),
+					"Number of replicas should be greater then zero and less then node count(%v)", cluster.NodesCount())
+
+				shards := cluster.PrepareSlotDistribution(replicas)
+
+				for _, shard := range shards {
+					slotRange := fmt.Sprintf("%v-%v", shard.FromSlot, shard.ToSlot-1)
+
+					slaves := make([]string, len(shard.Slaves))
+
+					for i, slaveAddress := range shard.Slaves {
+						slaves[i] = slaveAddress.String()
+					}
+
+					echo("%-11s %20s %v", slotRange, bold(shard.Master), strings.Join(slaves, " "))
+				}
+
+				if ask("Do you want to proceed?") {
+					echo(yellow("Not implemented..."))
+
+				} else {
+					echo("Aborted.")
+				}
 			},
 		},
 		cli.Command{
@@ -304,10 +355,10 @@ func main() {
 
 				for _, node := range cluster.Nodes() {
 
-					address := fmt.Sprintf("%s:%v", node.Ip(), node.Port())
+					address := node.Address()
 
 					if isShort {
-						echo(address)
+						echo("%s", address)
 						continue
 					}
 

@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const RedisSlotCount int = 16384
+
 type Cluster struct {
 	nodes []Node
 }
@@ -14,11 +16,18 @@ type ClusterStats struct {
 	nodesUp    int
 }
 
+type Shard struct {
+	Master   NodeAddress
+	Slaves   []NodeAddress
+	FromSlot int
+	ToSlot   int
+}
+
 func NewCluster(baseDir string, conf ClusterConf) Cluster {
 
-	nodes := make([]Node, len(conf.Ports))
+	nodes := make([]Node, len(conf.ListenPorts))
 
-	for i, port := range conf.Ports {
+	for i, port := range conf.ListenPorts {
 		nodes[i] = NewNode(baseDir, port, conf)
 	}
 
@@ -38,6 +47,10 @@ func (self Cluster) Nodes() []Node {
 	copy(result, self.nodes)
 
 	return result
+}
+
+func (self Cluster) NodesCount() int {
+	return len(self.nodes)
 }
 
 func (self Cluster) Start() {
@@ -83,4 +96,42 @@ func (self Cluster) Stats() (*ClusterStats, error) {
 	}
 
 	return &result, nil
+}
+
+func (self Cluster) PrepareSlotDistribution(replicas int) []Shard {
+	if replicas < 0 {
+		panic("Number of replicas should be greater than zero")
+	}
+
+	nodesWithDataCount := replicas + 1
+
+	nodesCount := len(self.nodes)
+
+	if nodesWithDataCount >= nodesCount {
+		panic("Number of replicas should be less then nodes count")
+	}
+
+	mastersCount := nodesCount / nodesWithDataCount
+
+	result := make([]Shard, mastersCount)
+
+	slotsPerShard := RedisSlotCount / mastersCount
+
+	for i, node := range self.nodes[:mastersCount] {
+		result[i].Master = node.Address()
+
+		fromSlot := slotsPerShard * i
+
+		result[i].FromSlot = fromSlot
+		result[i].ToSlot = fromSlot + slotsPerShard
+	}
+
+	result[mastersCount-1].ToSlot = RedisSlotCount
+
+	for j, node := range self.nodes[mastersCount:] {
+		i := j % mastersCount
+		result[i].Slaves = append(result[i].Slaves, node.Address())
+	}
+
+	return result
 }

@@ -9,8 +9,8 @@ import (
 )
 
 type ClusterConf struct {
-	ListenHost  string `yaml:"bind"`
-	Ports       []int
+	ListenIp    string `yaml:"bind"`
+	ListenPorts []int  `yaml:"ports"`
 	Persistence bool
 }
 
