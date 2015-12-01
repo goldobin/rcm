@@ -4,19 +4,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path"
 )
 
-const RcmHome string = ".rcm"
 const ClusterConfFileName string = "cluster.yml"
 
 type ClusterSet struct {
-	baseDir string
+	baseDir  string
+	binaries *Binaries
 }
 
-func NewClusterSet(baseDir string) (result ClusterSet, err error) {
-
+func NewClusterSet(baseDir string, binaries *Binaries) (result ClusterSet, err error) {
 	err = os.MkdirAll(baseDir, 0750)
 
 	if err != nil {
@@ -24,21 +22,14 @@ func NewClusterSet(baseDir string) (result ClusterSet, err error) {
 	}
 
 	result = ClusterSet{
-		baseDir: baseDir,
+		baseDir:  baseDir,
+		binaries: binaries,
 	}
 
 	return
 }
 
-func NewClusterSetAtHomeDir() (_ ClusterSet, err error) {
-	usr, err := user.Current()
-	if err != nil {
-		return
-	}
-	return NewClusterSet(path.Join(usr.HomeDir, RcmHome))
-}
-
-func (self ClusterSet) Create(name string, conf ClusterConf) (result Cluster, err error) {
+func (self ClusterSet) Create(name string, conf *ClusterConf) (result Cluster, err error) {
 
 	if self.Exists(name) {
 		err = fmt.Errorf("Cluster %s already exists", name)
@@ -51,13 +42,13 @@ func (self ClusterSet) Create(name string, conf ClusterConf) (result Cluster, er
 		return
 	}
 
-	err = SaveClusterConf(self.clusterConfFile(name), &conf)
+	err = SaveClusterConf(self.clusterConfFile(name), conf)
 
 	if err != nil {
 		return
 	}
 
-	result = NewCluster(self.clusterBaseDir(name), conf)
+	result = NewCluster(self.clusterBaseDir(name), conf, self.binaries)
 	result.CreateNodes()
 
 	return
@@ -81,7 +72,7 @@ func (self ClusterSet) Open(name string) (result Cluster, err error) {
 		return
 	}
 
-	result = NewCluster(self.clusterBaseDir(name), *conf)
+	result = NewCluster(self.clusterBaseDir(name), conf, self.binaries)
 	return
 }
 

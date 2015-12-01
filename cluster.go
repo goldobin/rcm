@@ -23,12 +23,12 @@ type Shard struct {
 	ToSlot   int
 }
 
-func NewCluster(baseDir string, conf ClusterConf) Cluster {
+func NewCluster(baseDir string, conf *ClusterConf, binaries *Binaries) Cluster {
 
 	nodes := make([]Node, len(conf.ListenPorts))
 
 	for i, port := range conf.ListenPorts {
-		nodes[i] = NewNode(baseDir, port, conf)
+		nodes[i] = NewNode(baseDir, port, conf, binaries)
 	}
 
 	return Cluster{

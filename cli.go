@@ -5,6 +5,8 @@ import (
 	"github.com/codegangsta/cli"
 	"github.com/fatih/color"
 	"os"
+	"os/user"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -13,6 +15,7 @@ import (
 const MaxTcpPort = 65535
 const RedisGossipPortIncrement = 10000
 const MaxClusterNameDisplayLength = 32
+const RcmHome string = ".rcm"
 
 var bold = color.New(color.Bold).SprintFunc()
 var green = color.New(color.FgGreen).SprintFunc()
@@ -83,7 +86,20 @@ func shorter(name string, maxDisplayLength int) string {
 func main() {
 
 	clusterNameRegEx := regexp.MustCompile(`^[\w+\-\.]+$`)
-	clusterSet, err := NewClusterSetAtHomeDir()
+
+	usr, err := user.Current()
+	if err != nil {
+		failure("Can't determine user's home directory")
+		return
+	}
+
+	binaries, err := NewBinaries()
+
+	if err != nil {
+		failureCausedByError(err)
+	}
+
+	clusterSet, err := NewClusterSet(path.Join(usr.HomeDir, RcmHome), binaries)
 
 	if err != nil {
 		failureCausedByError(err)
@@ -156,11 +172,13 @@ func main() {
 					ports) {
 					echo("Creating cluster %s...", bold(name))
 
-					clusterSet.Create(name, ClusterConf{
-						ListenIp:    listenIp,
-						ListenPorts: ports,
-						Persistence: c.Bool("persistance"),
-					})
+					clusterSet.Create(
+						name,
+						&ClusterConf{
+							ListenIp:    listenIp,
+							ListenPorts: ports,
+							Persistence: c.Bool("persistance"),
+						})
 				} else {
 					echo("Aborting.")
 				}

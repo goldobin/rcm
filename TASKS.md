@@ -2,8 +2,6 @@
 
 Implement `distribute-slots` command
 
-Check all required executables present in the system on the start
-
 Implement proper error handling while running external processes
 
 Check process is actually running, and executable is a redis-server while determining is node running 

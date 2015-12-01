@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -31,9 +30,10 @@ type Node struct {
 	address      NodeAddress
 	confFilePath string
 	conf         RedisNodeConf
+	binaries     *Binaries
 }
 
-func NewNode(clusterBaseDir string, port int, clusterConf ClusterConf) Node {
+func NewNode(clusterBaseDir string, port int, clusterConf *ClusterConf, binaries *Binaries) Node {
 
 	baseDir := path.Join(clusterBaseDir, strconv.Itoa(port))
 
@@ -48,6 +48,7 @@ func NewNode(clusterBaseDir string, port int, clusterConf ClusterConf) Node {
 			PidFile:     path.Join(baseDir, "var", "run", "redis.pid"),
 			DataDir:     path.Join(baseDir, "var", "lib", "redis"),
 		},
+		binaries: binaries,
 	}
 }
 
@@ -61,7 +62,7 @@ func (self Node) Create() {
 }
 
 func (self Node) Start() {
-	exec.Command("redis-server", self.confFilePath).Run()
+	self.binaries.RedisServer(self.confFilePath).Run()
 }
 
 func (self Node) Stop() {
@@ -77,26 +78,23 @@ func (self Node) KillWithSignal(signal string) {
 
 	if err != nil {
 		panic(err)
+		// TODO: Make proper error handling
 	}
 
-	exec.Command("kill", "-s", signal, strconv.Itoa(pid)).Run()
+	self.binaries.Kill("-s", signal, strconv.Itoa(pid)).Run()
 }
 
 func (self Node) Cli(args []string) {
-	binary, err := exec.LookPath("redis-cli")
-	if err != nil {
-		panic(err) // TODO: Make proper error handling
-	}
-
 	commandArgs := append(
 		[]string{
-			"redis-cli", "-c",
+			self.binaries.RedisClientPath(),
+			"-c",
 			"-h", self.conf.ListenIp,
 			"-p", strconv.Itoa(self.conf.ListenPort),
 		},
 		args...)
 
-	err = syscall.Exec(binary, commandArgs, os.Environ())
+	err := syscall.Exec(self.binaries.RedisClientPath(), commandArgs, os.Environ())
 
 	if err != nil {
 		panic(err) // TODO: Make proper error handling
