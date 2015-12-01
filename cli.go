@@ -390,7 +390,7 @@ func main() {
 				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
 
 				cluster, _ := clusterSet.Open(name)
-				cluster.Cli()
+				cluster.Cli(c.Args()[1:])
 			},
 		},
 	}

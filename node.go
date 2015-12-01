@@ -82,15 +82,21 @@ func (self Node) KillWithSignal(signal string) {
 	exec.Command("kill", "-s", signal, strconv.Itoa(pid)).Run()
 }
 
-func (self Node) Cli() {
+func (self Node) Cli(args []string) {
 	binary, err := exec.LookPath("redis-cli")
 	if err != nil {
 		panic(err) // TODO: Make proper error handling
 	}
 
-	args := []string{"redis-cli", "-c", "-h", self.conf.ListenIp, "-p", strconv.Itoa(self.conf.ListenPort)}
+	commandArgs := append(
+		[]string{
+			"redis-cli", "-c",
+			"-h", self.conf.ListenIp,
+			"-p", strconv.Itoa(self.conf.ListenPort),
+		},
+		args...)
 
-	err = syscall.Exec(binary, args, os.Environ())
+	err = syscall.Exec(binary, commandArgs, os.Environ())
 
 	if err != nil {
 		panic(err) // TODO: Make proper error handling

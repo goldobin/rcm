@@ -12,8 +12,6 @@ Refactor commands: move to separate files, use factory
 
 Add master/slave count info to the `list` output
 
-Implement cli command arguments to the redis-cli command
-
 Implement `damage` command
  
 Implement `recover` command

@@ -71,10 +71,10 @@ func (self Cluster) Kill() {
 	}
 }
 
-func (self Cluster) Cli() {
+func (self Cluster) Cli(args []string) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	nodeIx := r.Intn(len(self.nodes))
-	self.nodes[nodeIx].Cli()
+	self.nodes[nodeIx].Cli(args)
 }
 
 func (self Cluster) Stats() (*ClusterStats, error) {
