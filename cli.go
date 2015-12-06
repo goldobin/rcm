@@ -107,10 +107,16 @@ func main() {
 
 	app := cli.NewApp()
 
-	app.Name = "Redis Cluster Manager"
-	app.Usage = ""
+	app.Name = "RCM"
+	app.Usage = "Redis Cluster Manager"
 	app.Version = "0.0.1"
-
+	app.Copyright = "2015, Oleksandr Goldobin"
+	app.Authors = []cli.Author{
+		cli.Author{
+			Name:  "Oleksandr Goldobin",
+			Email: "alex.goldobin@gmail.com",
+		},
+	}
 	app.Commands = []cli.Command{
 		cli.Command{
 			Name:  "create",
