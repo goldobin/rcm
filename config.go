@@ -14,35 +14,26 @@ type ClusterConf struct {
 	Persistence bool
 }
 
-//func NewClusterConf(listenHost string, ports []int, persistance bool) ClusterConf
-
-func LoadClusterConf(fileName string) (r *ClusterConf, err error) {
-
-	data, err := ioutil.ReadFile(fileName)
-
-	if err != nil {
+func LoadClusterConf(fileName string) (*ClusterConf, error) {
+	if data, err := ioutil.ReadFile(fileName); err != nil {
 		return nil, err
+	} else {
+		r := &ClusterConf{}
+
+		if err := yaml.Unmarshal(data, r); err != nil {
+			return nil, err
+		} else {
+			return r, nil
+		}
 	}
-
-	r = &ClusterConf{}
-
-	err = yaml.Unmarshal(data, r)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
 }
 
-func SaveClusterConf(fileName string, conf *ClusterConf) (err error) {
-
-	data, err := yaml.Marshal(&conf)
-	if err != nil {
+func SaveClusterConf(fileName string, conf *ClusterConf) error {
+	if data, err := yaml.Marshal(&conf); err != nil {
 		return err
+	} else {
+		return ioutil.WriteFile(fileName, data, 0644)
 	}
-
-	return ioutil.WriteFile(fileName, data, 0644)
 }
 
 type RedisNodeConf struct {
@@ -54,45 +45,70 @@ type RedisNodeConf struct {
 	LogFile     string
 }
 
-func SaveRedisConf(fileName string, conf *RedisNodeConf) (err error) {
+func SaveRedisConf(fileName string, conf *RedisNodeConf) error {
 
-	f, err := os.Create(fileName)
-	if err != nil {
+	var w *bufio.Writer
+
+	if f, err := os.Create(fileName); err != nil {
+		return err
+	} else {
+		w = bufio.NewWriter(f)
+		defer f.Close()
+	}
+
+	if _, err := w.WriteString("daemonize yes\n"); err != nil {
 		return err
 	}
 
-	w := bufio.NewWriter(f)
+	if _, err := w.WriteString("cluster-enabled yes\n"); err != nil {
+		return err
+	}
 
-	w.WriteString("daemonize yes\n")
-	w.WriteString("cluster-enabled yes\n")
-	w.WriteString("loglevel notice\n")
+	if _, err := w.WriteString("loglevel notice\n"); err != nil {
+		return err
+	}
 
 	if len(conf.ListenIp) > 0 {
-		fmt.Fprintf(w, "bind %s\n", conf.ListenIp)
+		if _, err := fmt.Fprintf(w, "bind %s\n", conf.ListenIp); err != nil {
+			return err
+		}
 	}
 
 	if conf.ListenPort > 0 {
-		fmt.Fprintf(w, "port %d\n", conf.ListenPort)
+		if _, err := fmt.Fprintf(w, "port %d\n", conf.ListenPort); err != nil {
+			return err
+		}
 	}
 
 	if len(conf.PidFile) > 0 {
-		fmt.Fprintf(w, "pidfile %s\n", conf.PidFile)
+		if _, err := fmt.Fprintf(w, "pidfile %s\n", conf.PidFile); err != nil {
+			return err
+		}
 	}
 
 	if len(conf.LogFile) > 0 {
-		fmt.Fprintf(w, "logfile %s\n", conf.LogFile)
+		if _, err := fmt.Fprintf(w, "logfile %s\n", conf.LogFile); err != nil {
+			return err
+		}
 	}
 
-	fmt.Fprintf(w, "dir %s\n", conf.DataDir)
+	if _, err := fmt.Fprintf(w, "dir %s\n", conf.DataDir); err != nil {
+		return err
+	}
 
 	if conf.Persistence {
-		w.WriteString("appendonly yes\n")
+		if _, err := w.WriteString("appendonly yes\n"); err != nil {
+			return err
+		}
 	} else {
-		w.WriteString("appendonly no\n")
-		w.WriteString("save \"\"\n")
+		if _, err := w.WriteString("appendonly no\n"); err != nil {
+			return err
+		}
+
+		if _, err := w.WriteString("save \"\"\n"); err != nil {
+			return err
+		}
 	}
 
-	w.Flush()
-
-	return nil
+	return w.Flush()
 }

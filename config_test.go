@@ -16,12 +16,12 @@ func TestSaveLoadClusterConf(t *testing.T) {
 
 	cases := []ClusterConf{
 		ClusterConf{
-			ListenHost:  "127.0.0.1",
+			ListenIp:    "127.0.0.1",
 			ListenPorts: []int{7501, 7502, 7503, 7504, 7505, 7506},
 			Persistence: true,
 		},
 		ClusterConf{
-			ListenHost:  "loaclhost",
+			ListenIp:    "localhost",
 			ListenPorts: []int{7501, 7502},
 			Persistence: false,
 		},

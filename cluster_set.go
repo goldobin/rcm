@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,87 +15,77 @@ type ClusterSet struct {
 	binaries *Binaries
 }
 
-func NewClusterSet(baseDir string, binaries *Binaries) (result ClusterSet, err error) {
-	err = os.MkdirAll(baseDir, 0750)
-
-	if err != nil {
-		return
+func NewClusterSet(baseDir string, binaries *Binaries) (*ClusterSet, error) {
+	if err := os.MkdirAll(baseDir, 0750); err != nil {
+		return nil, err
 	}
 
-	result = ClusterSet{
-		baseDir:  baseDir,
-		binaries: binaries,
-	}
-
-	return
+	return &ClusterSet{
+			baseDir:  baseDir,
+			binaries: binaries,
+		},
+		nil
 }
 
-func (self ClusterSet) Create(name string, conf *ClusterConf) (result Cluster, err error) {
+func (self *ClusterSet) Create(name string, conf *ClusterConf) (*Cluster, error) {
 
 	if self.Exists(name) {
-		err = fmt.Errorf("Cluster %s already exists", name)
-		return
+		return nil, errors.New(fmt.Sprintf("Cluster %s already exists", name))
 	}
 
-	err = os.MkdirAll(self.clusterBaseDir(name), 0750)
-
-	if err != nil {
-		return
+	if err := os.MkdirAll(self.clusterBaseDir(name), 0750); err != nil {
+		return nil, err
 	}
 
-	err = SaveClusterConf(self.clusterConfFile(name), conf)
-
-	if err != nil {
-		return
+	if err := SaveClusterConf(self.clusterConfFile(name), conf); err != nil {
+		return nil, err
 	}
 
-	result = NewCluster(self.clusterBaseDir(name), conf, self.binaries)
+	result := NewCluster(self.clusterBaseDir(name), conf, self.binaries)
 	result.CreateNodes()
 
-	return
+	return result, nil
 }
 
-func (self ClusterSet) Exists(name string) bool {
+func (self *ClusterSet) Exists(name string) bool {
 	_, err := os.Stat(self.clusterBaseDir(name))
 	return !os.IsNotExist(err)
 }
 
-func (self ClusterSet) Open(name string) (result Cluster, err error) {
+func (self *ClusterSet) Open(name string) (*Cluster, error) {
 
 	if !self.Exists(name) {
-		err = fmt.Errorf("Cluster %s not exists", name)
-		return
+		return nil, errors.New(fmt.Sprintf("Cluster %s not exists", name))
 	}
 
-	conf, err := LoadClusterConf(self.clusterConfFile(name))
-
-	if err != nil {
-		return
+	if conf, err := LoadClusterConf(self.clusterConfFile(name)); err != nil {
+		return nil, err
+	} else {
+		return NewCluster(self.clusterBaseDir(name), conf, self.binaries), nil
 	}
-
-	result = NewCluster(self.clusterBaseDir(name), conf, self.binaries)
-	return
 }
 
-func (self ClusterSet) Remove(name string) error {
+func (self *ClusterSet) Remove(name string) error {
 	return os.RemoveAll(self.clusterBaseDir(name))
 }
 
-func (self ClusterSet) ListNames() (result []string) {
-	files, _ := ioutil.ReadDir(self.baseDir)
+func (self *ClusterSet) ListNames() ([]string, error) {
+	if files, err := ioutil.ReadDir(self.baseDir); err != nil {
+		return nil, err
+	} else {
+		result := make([]string, len(files))
 
-	result = make([]string, len(files))
-
-	for i, f := range files {
-		result[i] = f.Name()
+		for i, f := range files {
+			result[i] = f.Name()
+		}
+		return result, nil
 	}
-	return
 }
 
-func (self ClusterSet) clusterBaseDir(name string) string {
+func (self *ClusterSet) clusterBaseDir(name string) string {
 	return path.Join(self.baseDir, name)
 }
 
-func (self ClusterSet) clusterConfFile(name string) string {
+func (self *ClusterSet) clusterConfFile(name string) string {
 	return path.Join(self.clusterBaseDir(name), ClusterConfFileName)
 }

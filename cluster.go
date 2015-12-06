@@ -8,7 +8,7 @@ import (
 const RedisSlotCount int = 16384
 
 type Cluster struct {
-	nodes []Node
+	nodes []*Node
 }
 
 type ClusterStats struct {
@@ -17,64 +17,78 @@ type ClusterStats struct {
 }
 
 type Shard struct {
-	Master   NodeAddress
-	Slaves   []NodeAddress
-	FromSlot int
-	ToSlot   int
+	MasterAddress   NodeAddress
+	SlavesAddresses []NodeAddress
+	FromSlot        int
+	ToSlot          int
+	masterIndex     int
+	slaveIndices    []int
 }
 
-func NewCluster(baseDir string, conf *ClusterConf, binaries *Binaries) Cluster {
+func NewCluster(baseDir string, conf *ClusterConf, binaries *Binaries) *Cluster {
 
-	nodes := make([]Node, len(conf.ListenPorts))
+	nodes := make([]*Node, len(conf.ListenPorts))
 
 	for i, port := range conf.ListenPorts {
 		nodes[i] = NewNode(baseDir, port, conf, binaries)
 	}
 
-	return Cluster{
+	return &Cluster{
 		nodes: nodes,
 	}
 }
 
-func (self Cluster) CreateNodes() {
+func (self *Cluster) CreateNodes() {
 	for _, node := range self.nodes {
 		node.Create()
 	}
 }
 
-func (self Cluster) Nodes() []Node {
-	result := make([]Node, len(self.nodes))
+func (self *Cluster) Nodes() []*Node {
+	result := make([]*Node, len(self.nodes))
 	copy(result, self.nodes)
 
 	return result
 }
 
-func (self Cluster) NodesCount() int {
+func (self *Cluster) NodesCount() int {
 	return len(self.nodes)
 }
 
-func (self Cluster) Start() {
+func (self *Cluster) Start() error {
+	var err error = nil
+
 	for _, node := range self.nodes {
-		node.Start()
+		err = node.Start()
 	}
+
+	return err
 }
 
-func (self Cluster) Stop() {
+func (self *Cluster) Stop() error {
+	var err error = nil
+
 	for _, node := range self.nodes {
-		node.Stop()
+		err = node.Stop()
 	}
+
+	return err
 }
 
-func (self Cluster) Kill() {
+func (self *Cluster) Kill() error {
+	var err error = nil
+
 	for _, node := range self.nodes {
-		node.Stop()
+		err = node.Kill()
 	}
+
+	return err
 }
 
-func (self Cluster) Cli(args []string) {
+func (self *Cluster) RandomNode() *Node {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	nodeIx := r.Intn(len(self.nodes))
-	self.nodes[nodeIx].Cli(args)
+	return self.nodes[nodeIx]
 }
 
 func (self Cluster) Stats() (*ClusterStats, error) {
@@ -98,7 +112,7 @@ func (self Cluster) Stats() (*ClusterStats, error) {
 	return &result, nil
 }
 
-func (self Cluster) PrepareSlotDistribution(replicas int) []Shard {
+func (self *Cluster) PrepareSlotDistribution(replicas int) []Shard {
 	if replicas < 0 {
 		panic("Number of replicas should be greater than zero")
 	}
@@ -118,7 +132,8 @@ func (self Cluster) PrepareSlotDistribution(replicas int) []Shard {
 	slotsPerShard := RedisSlotCount / mastersCount
 
 	for i, node := range self.nodes[:mastersCount] {
-		result[i].Master = node.Address()
+		result[i].MasterAddress = node.Address()
+		result[i].masterIndex = i
 
 		fromSlot := slotsPerShard * i
 
@@ -130,8 +145,54 @@ func (self Cluster) PrepareSlotDistribution(replicas int) []Shard {
 
 	for j, node := range self.nodes[mastersCount:] {
 		i := j % mastersCount
-		result[i].Slaves = append(result[i].Slaves, node.Address())
+		result[i].SlavesAddresses = append(result[i].SlavesAddresses, node.Address())
+		result[i].slaveIndices = append(result[i].slaveIndices, mastersCount+j)
 	}
 
 	return result
+}
+
+func (self *Cluster) ApplySlotDistribution(shards []Shard) error {
+	firstNode := self.nodes[shards[0].masterIndex]
+
+	for _, shard := range shards[1:] {
+		meetErr := firstNode.ClusterMeet(shard.MasterAddress).Run()
+
+		if meetErr != nil {
+			return meetErr
+		}
+	}
+
+	for _, shard := range shards {
+		masterNode := self.nodes[shard.masterIndex]
+		masterNodeId, masterNodeIdErr := masterNode.Id()
+
+		if masterNodeIdErr != nil {
+			return masterNodeIdErr
+		}
+
+		addSlotsErr := masterNode.ClusterAddSlots(shard.FromSlot, shard.ToSlot).Run()
+
+		if addSlotsErr != nil {
+			return addSlotsErr
+		}
+
+		for _, slaveIndex := range shard.slaveIndices {
+			slaveNode := self.nodes[slaveIndex]
+
+			clusterMeetErr := masterNode.ClusterMeet(slaveNode.Address()).Run()
+
+			if clusterMeetErr != nil {
+				return clusterMeetErr
+			}
+
+			clusterReplicateErr := slaveNode.ClusterReplicate(masterNodeId).Run()
+
+			if clusterReplicateErr != nil {
+				return clusterReplicateErr
+			}
+		}
+	}
+
+	return nil
 }

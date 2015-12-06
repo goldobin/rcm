@@ -27,18 +27,6 @@ func NewBinaries() (*Binaries, error) {
 	return &Binaries{binaries: binaries}, nil
 }
 
-func (self *Binaries) RedisServer(args ...string) *exec.Cmd {
-	return exec.Command(self.RedisServerPath(), args...)
-}
-
-func (self *Binaries) RedisClient(args ...string) *exec.Cmd {
-	return exec.Command(self.RedisClientPath(), args...)
-}
-
-func (self *Binaries) Kill(args ...string) *exec.Cmd {
-	return exec.Command(self.KillPath(), args...)
-}
-
 func (self *Binaries) RedisServerPath() string {
 	return self.binaries["redis-server"]
 }

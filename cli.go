@@ -144,7 +144,7 @@ func main() {
 					clusterNameRegEx.MatchString(name),
 					"Illegal cluster name. The name should match %v",
 					clusterNameRegEx)
-				validate(!clusterSet.Exists(name), "Cluster with %s already exists", bold(name))
+				validate(!clusterSet.Exists(name), "Cluster %s already exists", bold(name))
 
 				nodeCount := c.Int("nodes")
 				maxPort := MaxTcpPort - RedisGossipPortIncrement - nodeCount
@@ -185,13 +185,14 @@ func main() {
 			},
 		},
 		cli.Command{
-			Name:  "remove",
-			Usage: "Removes existing cluster",
+			Name:    "remove",
+			Aliases: []string{"rm"},
+			Usage:   "Removes existing cluster",
 			Action: func(c *cli.Context) {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
 
 				if ask("Do you really want to remove cluster %s?", bold(name)) {
 					echo("Removing cluster %s...", bold(name))
@@ -215,15 +216,13 @@ func main() {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
 
-				cluster, err := clusterSet.Open(name)
-
-				if err != nil {
-					failure("Can't open cluster %s", bold(name))
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else if err := cluster.Start(); err != nil {
+					failureCausedByError(err)
 				}
-
-				cluster.Start()
 			},
 		},
 		cli.Command{
@@ -233,15 +232,13 @@ func main() {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
 
-				cluster, err := clusterSet.Open(name)
-
-				if err != nil {
-					failure("Can't open cluster %s", bold(name))
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else if err := cluster.Stop(); err != nil {
+					failureCausedByError(err)
 				}
-
-				cluster.Stop()
 			},
 		},
 		cli.Command{
@@ -258,12 +255,12 @@ func main() {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
 
 				cluster, err := clusterSet.Open(name)
 
 				if err != nil {
-					failure("Can't open cluster %s", bold(name))
+					failureCausedByError(err)
 				}
 
 				replicas := c.Int("replicas")
@@ -277,18 +274,17 @@ func main() {
 				for _, shard := range shards {
 					slotRange := fmt.Sprintf("%v-%v", shard.FromSlot, shard.ToSlot-1)
 
-					slaves := make([]string, len(shard.Slaves))
+					slaves := make([]string, len(shard.SlavesAddresses))
 
-					for i, slaveAddress := range shard.Slaves {
+					for i, slaveAddress := range shard.SlavesAddresses {
 						slaves[i] = slaveAddress.String()
 					}
 
-					echo("%-11s %20s %v", slotRange, bold(shard.Master), strings.Join(slaves, " "))
+					echo("%-11s %20s %v", slotRange, bold(shard.MasterAddress), strings.Join(slaves, " "))
 				}
 
 				if ask("Do you want to proceed?") {
-					echo(yellow("Not implemented..."))
-
+					cluster.ApplySlotDistribution(shards)
 				} else {
 					echo("Aborted.")
 				}
@@ -305,7 +301,12 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 
-				names := clusterSet.ListNames()
+				names, err := clusterSet.ListNames()
+
+				if err != nil {
+					failureCausedByError(err)
+				}
+
 				sort.Strings(names)
 
 				isShort := c.Bool("short")
@@ -349,66 +350,125 @@ func main() {
 			},
 		},
 		cli.Command{
-			Name:  "nodes",
-			Usage: "Lists nodes in cluster",
+			Name:  "ps",
+			Usage: "Lists cluster's processes",
 			Flags: []cli.Flag{
 				cli.BoolFlag{
 					Name:  "short, s",
-					Usage: "display only addresses of nodes",
+					Usage: "display only pids of nodes",
 				},
 			},
 			Action: func(c *cli.Context) {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
 
-				cluster, err := clusterSet.Open(name)
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else {
+					isShort := c.Bool("short")
 
-				if err != nil {
-					failure("Can't open cluster %s", bold(name))
-				}
+					for _, node := range cluster.Nodes() {
 
-				isShort := c.Bool("short")
+						var pid int
 
-				for _, node := range cluster.Nodes() {
-
-					address := node.Address()
-
-					if isShort {
-						echo("%s", address)
-						continue
-					}
-
-					var state string
-
-					isRunning, err := node.IsUp()
-
-					if err != nil {
-						state = red("ERROR")
-					} else {
-						if isRunning {
-							state = green("UP")
+						if p, err := node.Pid(); err != nil {
+							pid = -1
 						} else {
-							state = yellow("DOWN")
+							pid = p
 						}
-					}
 
-					echo("%-20s %s", address, state)
+						if isShort {
+							echo("%v", pid)
+							continue
+						}
+
+						var state string
+
+						if err != nil {
+							state = red("ERROR")
+						} else {
+							if pid > 0 {
+								state = green("UP")
+							} else {
+								state = yellow("DOWN")
+							}
+						}
+
+						echo("%-5v %-20s %s", pid, node.Address(), state)
+					}
+				}
+			},
+		},
+		cli.Command{
+			Name:  "info",
+			Usage: "Executes `cluter info` command at random node",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
+
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else if b, err := cluster.RandomNode().ClusterInfo().Output(); err != nil {
+					failureCausedByError(err)
+				} else if _, err := os.Stdout.Write(b); err != nil {
+					failureCausedByError(err)
+				}
+			},
+		},
+		cli.Command{
+			Name:  "nodes",
+			Usage: "Executes `cluter nodes` command at random node",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
+
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else if b, err := cluster.RandomNode().ClusterNodes().Output(); err != nil {
+					failureCausedByError(err)
+				} else if _, err := os.Stdout.Write(b); err != nil {
+					failureCausedByError(err)
+				}
+			},
+		},
+		cli.Command{
+			Name:  "slots",
+			Usage: "Executes `cluter slots` command at random node",
+			Action: func(c *cli.Context) {
+				name := first(c.Args())
+
+				validate(len(name) > 0, "Name of the cluster is required")
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
+
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else if b, err := cluster.RandomNode().ClusterSlots().Output(); err != nil {
+					failureCausedByError(err)
+				} else if _, err := os.Stdout.Write(b); err != nil {
+					failureCausedByError(err)
 				}
 			},
 		},
 		cli.Command{
 			Name:  "cli",
-			Usage: "Opens a redis-cli session with random node",
+			Usage: "Opens a redis-cli session with random cluster node",
 			Action: func(c *cli.Context) {
 				name := first(c.Args())
 
 				validate(len(name) > 0, "Name of the cluster is required")
-				validate(clusterSet.Exists(name), "Cluster with %s does not exists", bold(name))
+				validate(clusterSet.Exists(name), "Cluster %s does not exists", bold(name))
 
-				cluster, _ := clusterSet.Open(name)
-				cluster.Cli(c.Args()[1:])
+				if cluster, err := clusterSet.Open(name); err != nil {
+					failureCausedByError(err)
+				} else {
+					cluster.RandomNode().Cli(c.Args()[1:]...)
+				}
 			},
 		},
 	}
