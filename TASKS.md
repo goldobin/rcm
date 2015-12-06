@@ -15,9 +15,7 @@ Implement `damage` command
  
 Implement `recover` command
 
-Generate and try bash completion
-
-Add license
+Generate and bash completion
 
 Move to git-hub
 
