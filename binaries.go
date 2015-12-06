@@ -27,14 +27,14 @@ func NewBinaries() (*Binaries, error) {
 	return &Binaries{binaries: binaries}, nil
 }
 
-func (self *Binaries) RedisServerPath() string {
+func (self *Binaries) RedisServer() string {
 	return self.binaries["redis-server"]
 }
 
-func (self *Binaries) RedisClientPath() string {
+func (self *Binaries) RedisClient() string {
 	return self.binaries["redis-cli"]
 }
 
-func (self *Binaries) KillPath() string {
+func (self *Binaries) Kill() string {
 	return self.binaries["kill"]
 }

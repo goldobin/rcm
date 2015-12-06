@@ -76,7 +76,7 @@ func (self *Node) Create() error {
 }
 
 func (self *Node) Start() error {
-	binary := self.binaries.RedisServerPath()
+	binary := self.binaries.RedisServer()
 	return exec.Command(binary, self.confFilePath).Run()
 }
 
@@ -96,7 +96,7 @@ func (self *Node) KillWithSignal(signal string) error {
 		// TODO: Make proper error handling
 	}
 
-	binary := self.binaries.KillPath()
+	binary := self.binaries.Kill()
 
 	return exec.Command(binary, "-s", signal, strconv.Itoa(pid)).Run()
 }
@@ -112,14 +112,14 @@ func (self *Node) clientArgs(args []string) []string {
 }
 
 func (self *Node) Cli(args ...string) error {
-	clientPath := self.binaries.RedisClientPath()
+	clientPath := self.binaries.RedisClient()
 	commandArgs := append([]string{clientPath}, self.clientArgs(args)...)
 
 	return syscall.Exec(clientPath, commandArgs, os.Environ())
 }
 
 func (self *Node) Client(args ...string) *exec.Cmd {
-	binary := self.binaries.RedisClientPath()
+	binary := self.binaries.RedisClient()
 	return exec.Command(binary, self.clientArgs(args)...)
 }
 
