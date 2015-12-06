@@ -1,5 +1,7 @@
 # Tasks
 
+Add `README.md` file
+
 Check node's process is actually running, and executable is a redis-server in `Node::IsUp` 
 
 Refactor commands: move to separate files, use factory
