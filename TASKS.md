@@ -9,7 +9,7 @@ Refactor commands: move to separate files, use factory
 Add flag to `create` command which will signalize to perform `start` and `distribute-slots` with default parameters (or 
 parameters specified in env vars) right after cluster start
 
-Add `cli-each` command shich will perform the same operation on each known cluster node 
+Add `cli-each` command which will perform the same operation on each known cluster node 
 
 Add master/slave count info to the `list` output
 
