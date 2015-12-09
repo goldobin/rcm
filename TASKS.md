@@ -1,8 +1,6 @@
 # Tasks
 
-Add `README.md` file
-
-Check node's process is actually running, and executable is a redis-server in `Node::IsUp` 
+Check node's process is actually running in `Node::IsUp` 
 
 Refactor commands: move to separate files, use factory
 
@@ -17,16 +15,16 @@ Implement `damage` command
  
 Implement `recover` command
 
-Generate and bash completion
-
-Move to git-hub
+Move to [Github](http://github.com)
 
 Enable CI (travis ci?)
 
 Investigate the ways of distributing application (brew, rpm, deb)
 
-Add reasonable ENV vars to the commands
+Add reasonable ENV vars to override defaults
 
-Add specific redis version download (no redis pre-installation)
+Add `-y` (answer yes) flag (for create, remove, damage etc.)
 
-Add global 'answer yes' flag
+Add specific Redis version download (no redis pre-installation)
+
+Generate and test bash completion
