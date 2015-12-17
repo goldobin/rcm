@@ -7,7 +7,7 @@ Influenced by [ccm (Cassandra Cluster Manager)](https://github.com/pcmanus/ccm)
 
 # Prerequisites
 
-- Redis 3.x. The `redis-server` and `redis-cli` should be on the `${PATH}`. Look [Installing Redis](markdown-installing-redis) section
+- Redis 3.x. The `redis-server` and `redis-cli` should be on the `${PATH}`. Look at [Installing Redis](#markdown-installing-redis) section
 
 # Installation
 
