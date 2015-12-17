@@ -2,8 +2,6 @@
 
 Check node's process is actually running in `Node::IsUp` 
 
-Refactor commands: move to separate files, use factory
-
 Add flag to `create` command which will signalize to perform `start` and `distribute-slots` with default parameters (or 
 parameters specified in env vars) right after cluster start
 
