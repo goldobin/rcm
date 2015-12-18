@@ -1,9 +1,25 @@
 language: go
-
 go:
   - 1.5.1
-
 install:
   - go get github.com/codegangsta/cli
   - go get github.com/fatih/color
   - go get gopkg.in/yaml.v2
+env:
+  global:
+    - GIMME_ARCH=amd64
+  matrix:
+    - GIMME_OS=linux
+    - GIMME_OS=darwin
+script:
+  - go test -v
+  - go build
+  - tar -zcf rcm-$(cat VERSION)-${GIMME_OS}-${GIMME_ARCH}.tar.gz rcm README.md LICENSE.txt
+deploy:
+  provider: releases
+  file: rcm-$(cat VERSION)-${GIMME_OS}-${GIMME_ARCH}.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
+  api_key:
+    secure: oExp/G+JnRG4TW9p4j8H58DwvjyoTCdAe5Pi+5q4mPK0p5fgWUK2W101BCRgfSVoaLt7vu0dPSaWO0xHv9dVrQGfUEuEHAeWKJJO0OeedjFjQK4c3SxviXCz3rhBkOwmiq3Gs1Z+IMeqB8OlLJokcPYdJIWrn3cMmfpeiswpOFM6VWivTpMcE0RorAZr5EHYQiCsG/uGNC5HjgA42RG4QWZasn+1+7lY4WsTx36g248uRp7DqUsUWRGFfgi876HfFOJXSg2I19dAiR4aZkEanVrhWdFPYSn6MPhxwG7vFzw2p5Sy0WxfiVJRRdvj8AjnNNjN3OEJLKj44yqrWiKkxUrOMdlp/wway+7pTOhYOJHggy58p55Tf9uaSdSdc6lmn7pBng1PraY328dVPyXV0wLDQ6fl4qv8VaQGtsDCwJ6tcDKnuYJKKlZqrBRnexKGTDhV/ZggmAC2PFkAeiRJv3y/i86IKVidBTOAFk8+fFYjhXpfks4yXh45HoZRheUnz9hjiy4AnnWs33VzjdrRwhd9bIW/IsZKYqHj/nDUNM0hPx6ObGKHV0sA+1ldtdzfdgpdnYpeZFBR/4iIBPNXSnUrsO8WBBZQNyhUFwTGuGVrXfiXMZ1K7FQbz0Fq/ufxVfYLbRSpvCHBjCAJBp53xvUVfIsZPeVhH6hfRE/SasQ=
