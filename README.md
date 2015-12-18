@@ -18,7 +18,7 @@ Install golang version 1.5 or later on your system first.
 ```bash
 go get github.com/codegangsta/cli
 go get github.com/fatih/color
-go get bitbucket.org/goldobin/rcm
+go get github.com/goldobin/rcm
 
 go install rcm
 ```
