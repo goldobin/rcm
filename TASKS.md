@@ -13,8 +13,6 @@ Implement `damage` command
  
 Implement `recover` command
 
-Enable CI (travis ci?)
-
 Investigate the ways of distributing application (brew, rpm, deb)
 
 Add reasonable ENV vars to override defaults
