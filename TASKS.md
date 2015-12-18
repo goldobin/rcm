@@ -13,8 +13,6 @@ Implement `damage` command
  
 Implement `recover` command
 
-Move to [Github](http://github.com)
-
 Enable CI (travis ci?)
 
 Investigate the ways of distributing application (brew, rpm, deb)
