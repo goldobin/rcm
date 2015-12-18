@@ -1,5 +1,7 @@
 # RCM - Redis Cluster Manager
 
+[![Build Status](https://travis-ci.org/goldobin/rcm.svg?branch=master)](https://travis-ci.org/goldobin/rcm)
+
 RCM is a simple utility to manage [Redis 3.x](https://github.com/antirez/redis) clusters for development purposes. 
 Right now it supports only `localhost` as a host of the cluster. But probably Docker containers will be also supported.
 
