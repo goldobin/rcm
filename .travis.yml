@@ -6,3 +6,4 @@ go:
 install:
   - go get github.com/codegangsta/cli
   - go get github.com/fatih/color
+  - go get gopkg.in/yaml.v2
