@@ -51,6 +51,20 @@ func (self *Cluster) Nodes() []*Node {
 	return result
 }
 
+func (self *Cluster) NodesByState(isUp bool) ([]*Node, error) {
+	result := make([]*Node, 0)
+
+	for _, node := range self.nodes {
+		if nodeIsUp, err := node.IsUp(); err != nil {
+			return nil, err
+		} else if nodeIsUp == isUp {
+			result = append(result, node)
+		}
+	}
+
+	return result, nil
+}
+
 func (self *Cluster) NodesCount() int {
 	return len(self.nodes)
 }
@@ -85,10 +99,17 @@ func (self *Cluster) Kill() error {
 	return err
 }
 
-func (self *Cluster) RandomNode() *Node {
+func (self *Cluster) RandomNode(isUp bool) (*Node, error) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	nodeIx := r.Intn(len(self.nodes))
-	return self.nodes[nodeIx]
+
+	if upNodes, err := self.NodesByState(true); err != nil {
+		return nil, err
+	} else if len(upNodes) < 1 {
+		return nil, ClusterIsDownError
+	} else {
+		nodeIx := r.Intn(len(upNodes))
+		return upNodes[nodeIx], nil
+	}
 }
 
 func (self Cluster) Stats() (*ClusterStats, error) {

@@ -121,7 +121,6 @@ func main() {
 			Action: func(c *cli.Context) {
 				err := controller.Stop(first(c.Args()))
 				printError(err)
-
 			},
 		},
 		cli.Command{
@@ -140,8 +139,9 @@ func main() {
 			},
 		},
 		cli.Command{
-			Name:  "list",
-			Usage: "Lists available clusters",
+			Name:    "list",
+			Aliases: []string{"ls"},
+			Usage:   "Lists available clusters",
 			Flags: []cli.Flag{
 				cli.BoolFlag{
 					Name:  "short, s",
@@ -164,6 +164,29 @@ func main() {
 			},
 			Action: func(c *cli.Context) {
 				err := controller.Ps(first(c.Args()), c.Bool("short"))
+				printError(err)
+			},
+		},
+		cli.Command{
+			Name:  "damage",
+			Usage: "Randomily stops nodes in cluster",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "count, c",
+					Value: "16.5%",
+					Usage: "the amount of nodes to stop, can be in percents",
+				},
+			},
+			Action: func(c *cli.Context) {
+				err := controller.Damage(first(c.Args()), c.String("count"))
+				printError(err)
+			},
+		},
+		cli.Command{
+			Name:  "repair",
+			Usage: "Starts nodes that are down",
+			Action: func(c *cli.Context) {
+				err := controller.Repair(first(c.Args()))
 				printError(err)
 			},
 		},

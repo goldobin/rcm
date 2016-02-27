@@ -3,11 +3,15 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -26,6 +30,9 @@ var (
 	IllegalClusterNameError  = fmt.Errorf(
 		"Illegal cluster name. The name should match %v",
 		clusterNameRegEx)
+	NodesCountRequiredError  = errors.New("Nodes count is required")
+	IllegalPercentValueError = errors.New("Illegal percent value. Should be in rage 0.01..100")
+	ClusterIsDownError       = errors.New("All cluster nodes are down")
 )
 
 func ClusterExistsError(clusterName string) error {
@@ -37,7 +44,7 @@ func ClusterDoesNotExistError(clusterName string) error {
 }
 
 func IllegalReplicaCount(clusterNodeCount int) error {
-	return fmt.Errorf("Number of replicas should be greater then zero and less then node count(%v)", clusterNodeCount)
+	return fmt.Errorf("Number of replicas should be in range 0..%v", clusterNodeCount)
 }
 
 func TooFewNumberOfNodesError() error {
@@ -46,6 +53,10 @@ func TooFewNumberOfNodesError() error {
 
 func PortOutOfRangeError(maxPort int) error {
 	return fmt.Errorf("Start port out of range of allowed ports (1-%v)", maxPort)
+}
+
+func IllegalNodeCount(availableNodeCount int) error {
+	return fmt.Errorf("Node count should be in range 1..%v (up nodes)", availableNodeCount)
 }
 
 type CreateProperties struct {
@@ -69,7 +80,7 @@ type Controller struct {
 	clusterSet *ClusterSet
 }
 
-type clusterCmdSupplier func(*Cluster) *exec.Cmd
+type clusterCmdSupplier func(*Cluster) (*exec.Cmd, error)
 
 func (self *Controller) Create(clusterName string, props CreateProperties) error {
 
@@ -285,29 +296,143 @@ func (self *Controller) Ps(clusterName string, short bool) error {
 	}
 }
 
+func determineNodesToStop(cluster *Cluster, str string) ([]*Node, error) {
+	str = strings.TrimSpace(str)
+
+	strLength := len(str)
+
+	if strLength < 1 {
+		return nil, NodesCountRequiredError
+	}
+
+	isPercent := str[strLength-1] == '%'
+
+	if isPercent && strLength < 2 {
+		return nil, NodesCountRequiredError
+	}
+
+	if upNodes, err := cluster.NodesByState(true); err != nil {
+		return nil, err
+	} else if upNodesCount := len(upNodes); upNodesCount < 1 {
+		return nil, ClusterIsDownError
+	} else {
+		var nodesToStopCount int
+
+		if isPercent {
+			if percent, err := strconv.ParseFloat(str[:strLength-1], 32); err != nil || percent < 0.01 || percent > 100 {
+				return nil, IllegalPercentValueError
+			} else {
+				percentOfNodesToStop := int(math.Ceil(float64(cluster.NodesCount()) * percent / 100.0))
+				nodesToStopCount = percentOfNodesToStop - (cluster.NodesCount() - upNodesCount)
+
+				if nodesToStopCount < 0 {
+					nodesToStopCount = 0
+				}
+			}
+		} else {
+			if count, err := strconv.Atoi(str); err != nil || count < 1 || count > upNodesCount {
+				return nil, IllegalNodeCount(upNodesCount)
+			} else {
+				nodesToStopCount = count
+			}
+		}
+
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		nodeIndexesToStop := make(map[int]bool)
+
+		for len(nodeIndexesToStop) < nodesToStopCount {
+			nodeIndexesToStop[r.Intn(upNodesCount)] = true
+		}
+
+		result := upNodes[:0]
+
+		for i, _ := range nodeIndexesToStop {
+			result = append(result, upNodes[i])
+		}
+
+		return result, nil
+	}
+}
+
+func (self *Controller) Damage(clusterName string, nodesCountStr string) error {
+
+	if cluster, err := self.openCluster(clusterName); err != nil {
+		return err
+	} else if nodesToStop, err := determineNodesToStop(cluster, nodesCountStr); err != nil {
+		return err
+	} else if len(nodesToStop) < 1 {
+		self.view.Echo("Nothing to stop. Cluster is down or already damaged to specified degree")
+	} else if self.view.Ask("Will stop %v nodes. Proceed?", len(nodesToStop)) {
+		self.view.Echo("Stopping nodes...")
+
+		for _, node := range nodesToStop {
+			if err := node.Stop(); err != nil {
+				return err
+			}
+		}
+
+		self.view.Success("Stopped %v nodes", len(nodesToStop))
+	}
+
+	return nil
+}
+
+func (self *Controller) Repair(clusterName string) error {
+	if cluster, err := self.openCluster(clusterName); err != nil {
+		return err
+	} else if downNodes, err := cluster.NodesByState(false); err != nil {
+		return err
+	} else if self.view.Ask("Will start %v nodes. Proceed?", len(downNodes)) {
+		for _, node := range downNodes {
+			if err := node.Start(); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	} else {
+		return nil
+	}
+}
+
 func (self *Controller) Info(clusterName string) error {
-	return self.execClusterCmd(clusterName, func(cluster *Cluster) *exec.Cmd {
-		return cluster.RandomNode().ClusterInfo()
+	return self.execClusterCmd(clusterName, func(cluster *Cluster) (*exec.Cmd, error) {
+		if node, err := cluster.RandomNode(true); err != nil {
+			return nil, err
+		} else {
+			return node.ClusterInfo(), nil
+		}
 	})
 }
 
 func (self *Controller) Nodes(clusterName string) error {
-	return self.execClusterCmd(clusterName, func(cluster *Cluster) *exec.Cmd {
-		return cluster.RandomNode().ClusterNodes()
+	return self.execClusterCmd(clusterName, func(cluster *Cluster) (*exec.Cmd, error) {
+		if node, err := cluster.RandomNode(true); err != nil {
+			return nil, err
+		} else {
+			return node.ClusterNodes(), nil
+		}
 	})
 }
 
 func (self *Controller) Slots(clusterName string) error {
-	return self.execClusterCmd(clusterName, func(cluster *Cluster) *exec.Cmd {
-		return cluster.RandomNode().ClusterSlots()
+	return self.execClusterCmd(clusterName, func(cluster *Cluster) (*exec.Cmd, error) {
+		if node, err := cluster.RandomNode(true); err != nil {
+			return nil, err
+		} else {
+			return node.ClusterSlots(), nil
+		}
 	})
 }
 
 func (self *Controller) Cli(clusterName string, args []string) error {
 	if cluster, err := self.openCluster(clusterName); err != nil {
 		return err
+	} else if node, err := cluster.RandomNode(true); err != nil {
+		return err
 	} else {
-		return cluster.RandomNode().Cli(args...)
+		return node.Cli(args...)
 	}
 }
 
@@ -326,7 +451,9 @@ func (self *Controller) openCluster(clusterName string) (*Cluster, error) {
 func (self *Controller) execClusterCmd(clusterName string, f clusterCmdSupplier) error {
 	if cluster, err := self.openCluster(clusterName); err != nil {
 		return err
-	} else if b, err := f(cluster).Output(); err != nil {
+	} else if cmd, err := f(cluster); err != nil {
+		return err
+	} else if b, err := cmd.Output(); err != nil {
 		return err
 	} else {
 		_, err := os.Stdout.Write(b)
