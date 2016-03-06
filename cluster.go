@@ -2,6 +2,7 @@ package main
 
 import (
 	"math/rand"
+	"sort"
 	"time"
 )
 
@@ -51,18 +52,50 @@ func (self *Cluster) Nodes() []*Node {
 	return result
 }
 
-func (self *Cluster) NodesByState(isUp bool) ([]*Node, error) {
-	result := make([]*Node, 0)
+type NodeWithState struct {
+	Node *Node
+	IsUp bool
+}
 
-	for _, node := range self.nodes {
-		if nodeIsUp, err := node.IsUp(); err != nil {
-			return nil, err
-		} else if nodeIsUp == isUp {
-			result = append(result, node)
+type NodeWithStateByState []NodeWithState
+
+func (self NodeWithStateByState) Len() int      { return len(self) }
+func (self NodeWithStateByState) Swap(i, j int) { self[i], self[j] = self[j], self[i] }
+func (self NodeWithStateByState) Less(i, j int) bool {
+	if self[i].IsUp == self[j].IsUp {
+		return false
+	} else {
+		return self[i].IsUp
+	}
+}
+
+func (self *Cluster) NodesByState() ([]*Node, int, error) {
+
+	var origNodes = self.Nodes()
+	var nodesWithStates = make([]NodeWithState, len(origNodes))
+
+	for i, node := range origNodes {
+
+		if isUp, err := node.IsUp(); err != nil {
+			return nil, -1, err
+		} else {
+			nodesWithStates[i] = NodeWithState{Node: node, IsUp: isUp}
 		}
 	}
 
-	return result, nil
+	sort.Sort(NodeWithStateByState(nodesWithStates))
+
+	var splitIndex = sort.Search(len(nodesWithStates), func(i int) bool {
+		return !nodesWithStates[i].IsUp
+	})
+
+	var nodes = make([]*Node, len(nodesWithStates))
+
+	for i, nodeWithState := range nodesWithStates {
+		nodes[i] = nodeWithState.Node
+	}
+
+	return nodes, splitIndex, nil
 }
 
 func (self *Cluster) NodesCount() int {
@@ -102,13 +135,12 @@ func (self *Cluster) Kill() error {
 func (self *Cluster) RandomNode(isUp bool) (*Node, error) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	if upNodes, err := self.NodesByState(true); err != nil {
+	if nodes, splitIndex, err := self.NodesByState(); err != nil {
 		return nil, err
-	} else if len(upNodes) < 1 {
+	} else if splitIndex < 1 {
 		return nil, ClusterIsDownError
 	} else {
-		nodeIx := r.Intn(len(upNodes))
-		return upNodes[nodeIx], nil
+		return nodes[r.Intn(splitIndex)], nil
 	}
 }
 

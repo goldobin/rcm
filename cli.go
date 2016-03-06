@@ -168,25 +168,18 @@ func main() {
 			},
 		},
 		cli.Command{
-			Name:  "damage",
-			Usage: "Randomily stops nodes in cluster",
+			Name:        "damage",
+			Usage:       "Damage cluster to some degree",
+			Description: "Randomily starts/stops nodes in cluster to achieve specified number of live nodes",
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:  "count, c",
-					Value: "16.5%",
-					Usage: "the amount of nodes to stop, can be in percents",
+					Name:  "nodes, n",
+					Value: "66%",
+					Usage: "the amount of nodes that should be up in cluster",
 				},
 			},
 			Action: func(c *cli.Context) {
 				err := controller.Damage(first(c.Args()), c.String("count"))
-				printError(err)
-			},
-		},
-		cli.Command{
-			Name:  "repair",
-			Usage: "Starts nodes that are down",
-			Action: func(c *cli.Context) {
-				err := controller.Repair(first(c.Args()))
 				printError(err)
 			},
 		},

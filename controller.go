@@ -31,7 +31,7 @@ var (
 		"Illegal cluster name. The name should match %v",
 		clusterNameRegEx)
 	NodesCountRequiredError  = errors.New("Nodes count is required")
-	IllegalPercentValueError = errors.New("Illegal percent value. Should be in rage 0.01..100")
+	IllegalPercentValueError = errors.New("Illegal percent value. Should be in rage 0..100")
 	ClusterIsDownError       = errors.New("All cluster nodes are down")
 )
 
@@ -296,104 +296,114 @@ func (self *Controller) Ps(clusterName string, short bool) error {
 	}
 }
 
-func determineNodesToStop(cluster *Cluster, str string) ([]*Node, error) {
-	str = strings.TrimSpace(str)
+func determineDesiredUpNodeCount(clusterSize int, desiredCountDesc string) (int, error) {
+	desiredCountDesc = strings.TrimSpace(desiredCountDesc)
 
-	strLength := len(str)
-
-	if strLength < 1 {
-		return nil, NodesCountRequiredError
+	if len(desiredCountDesc) < 1 {
+		return -1, NodesCountRequiredError
 	}
 
-	isPercent := str[strLength-1] == '%'
+	var isPercent = desiredCountDesc[len(desiredCountDesc)-1] == '%'
 
-	if isPercent && strLength < 2 {
-		return nil, NodesCountRequiredError
+	if isPercent && len(desiredCountDesc) < 2 {
+		return -1, NodesCountRequiredError
 	}
 
-	if upNodes, err := cluster.NodesByState(true); err != nil {
-		return nil, err
-	} else if upNodesCount := len(upNodes); upNodesCount < 1 {
-		return nil, ClusterIsDownError
-	} else {
-		var nodesToStopCount int
-
-		if isPercent {
-			if percent, err := strconv.ParseFloat(str[:strLength-1], 32); err != nil || percent < 0.01 || percent > 100 {
-				return nil, IllegalPercentValueError
-			} else {
-				percentOfNodesToStop := int(math.Ceil(float64(cluster.NodesCount()) * percent / 100.0))
-				nodesToStopCount = percentOfNodesToStop - (cluster.NodesCount() - upNodesCount)
-
-				if nodesToStopCount < 0 {
-					nodesToStopCount = 0
-				}
-			}
+	if isPercent {
+		if percent, err := strconv.ParseFloat(desiredCountDesc[:len(desiredCountDesc)-1], 32); err != nil || percent < 0 || percent > 100 {
+			return -1, IllegalPercentValueError
 		} else {
-			if count, err := strconv.Atoi(str); err != nil || count < 1 || count > upNodesCount {
-				return nil, IllegalNodeCount(upNodesCount)
-			} else {
-				nodesToStopCount = count
-			}
+			return int(math.Ceil(float64(clusterSize) * percent / 100.0)), nil
+		}
+	} else {
+		if count, err := strconv.Atoi(desiredCountDesc); err != nil || count < 1 || count > clusterSize {
+			return -1, IllegalNodeCount(clusterSize)
+		} else {
+			return count, nil
+		}
+	}
+}
+
+func computeDamageAction(cluster *Cluster, desiredUpNodeCount int) ([]*Node, bool, error) {
+
+	if nodes, splitIndex, err := cluster.NodesByState(); err != nil {
+		return nil, true, err
+	} else {
+		var countDiff = desiredUpNodeCount - splitIndex
+
+		var r = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		var nodesToAffect []*Node
+		var needUp bool
+
+		if countDiff == 0 {
+			return []*Node{}, true, nil
+		} else if countDiff < 0 {
+			nodesToAffect = nodes[0:splitIndex]
+			needUp = false
+		} else if countDiff > 0 {
+			nodesToAffect = nodes[splitIndex:]
+			needUp = true
 		}
 
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		var randomIndexesCount int
 
-		nodeIndexesToStop := make(map[int]bool)
-
-		for len(nodeIndexesToStop) < nodesToStopCount {
-			nodeIndexesToStop[r.Intn(upNodesCount)] = true
+		if countDiff < 0 {
+			randomIndexesCount = -countDiff
+		} else {
+			randomIndexesCount = countDiff
 		}
 
-		result := upNodes[:0]
+		randomIndexes := make(map[int]bool, randomIndexesCount)
 
-		for i, _ := range nodeIndexesToStop {
-			result = append(result, upNodes[i])
+		for len(randomIndexes) < randomIndexesCount {
+			randomIndexes[r.Intn(len(nodesToAffect))] = true
 		}
 
-		return result, nil
+		var result = nodesToAffect[:0]
+
+		for idx, _ := range randomIndexes {
+			result = append(result, nodesToAffect[idx])
+		}
+
+		return result, needUp, nil
 	}
 }
 
 func (self *Controller) Damage(clusterName string, nodesCountStr string) error {
+	actionName := func(action bool) string {
+		if action {
+			return green("start")
+		} else {
+			return red("stop")
+		}
+	}
 
 	if cluster, err := self.openCluster(clusterName); err != nil {
 		return err
-	} else if nodesToStop, err := determineNodesToStop(cluster, nodesCountStr); err != nil {
+	} else if desiredUpNodeCount, err := determineDesiredUpNodeCount(cluster.NodesCount(), nodesCountStr); err != nil {
 		return err
-	} else if len(nodesToStop) < 1 {
-		self.view.Echo("Nothing to stop. Cluster is down or already damaged to specified degree")
-	} else if self.view.Ask("Will stop %v nodes. Proceed?", len(nodesToStop)) {
-		self.view.Echo("Stopping nodes...")
-
-		for _, node := range nodesToStop {
-			if err := node.Stop(); err != nil {
-				return err
+	} else if nodesToAffect, action, err := computeDamageAction(cluster, desiredUpNodeCount); err != nil {
+		return err
+	} else if len(nodesToAffect) < 1 {
+		self.view.Echo("Nothing to do. Cluster already in specified state")
+	} else if self.view.Ask("Will %s %v nodes. Proceed?", actionName(action), len(nodesToAffect)) {
+		for _, node := range nodesToAffect {
+			if action {
+				if err := node.Start(); err != nil {
+					return err
+				}
+			} else {
+				if err := node.Stop(); err != nil {
+					return err
+				}
 			}
 		}
 
-		self.view.Success("Stopped %v nodes", len(nodesToStop))
+		self.view.Success("Affected %v nodes", len(nodesToAffect))
 	}
 
 	return nil
-}
-
-func (self *Controller) Repair(clusterName string) error {
-	if cluster, err := self.openCluster(clusterName); err != nil {
-		return err
-	} else if downNodes, err := cluster.NodesByState(false); err != nil {
-		return err
-	} else if self.view.Ask("Will start %v nodes. Proceed?", len(downNodes)) {
-		for _, node := range downNodes {
-			if err := node.Start(); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	} else {
-		return nil
-	}
 }
 
 func (self *Controller) Info(clusterName string) error {
