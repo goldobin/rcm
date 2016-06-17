@@ -30,9 +30,9 @@ var (
 	IllegalClusterNameError  = fmt.Errorf(
 		"Illegal cluster name. The name should match %v",
 		clusterNameRegEx)
-	NodesCountRequiredError  = errors.New("Nodes count is required")
-	IllegalPercentValueError = errors.New("Illegal percent value. Should be in rage 0..100")
-	ClusterIsDownError       = errors.New("All cluster nodes are down")
+	CountDescriptionRequiredError = errors.New("Nodes count is required")
+	IllegalPercentValueError      = errors.New("Illegal percent value. Should be in rage 0..100")
+	ClusterIsDownError            = errors.New("All cluster nodes are down")
 )
 
 func ClusterExistsError(clusterName string) error {
@@ -300,13 +300,13 @@ func determineDesiredUpNodeCount(clusterSize int, desiredCountDesc string) (int,
 	desiredCountDesc = strings.TrimSpace(desiredCountDesc)
 
 	if len(desiredCountDesc) < 1 {
-		return -1, NodesCountRequiredError
+		return -1, CountDescriptionRequiredError
 	}
 
 	var isPercent = desiredCountDesc[len(desiredCountDesc)-1] == '%'
 
 	if isPercent && len(desiredCountDesc) < 2 {
-		return -1, NodesCountRequiredError
+		return -1, CountDescriptionRequiredError
 	}
 
 	if isPercent {
@@ -324,10 +324,17 @@ func determineDesiredUpNodeCount(clusterSize int, desiredCountDesc string) (int,
 	}
 }
 
-func computeDamageAction(cluster *Cluster, desiredUpNodeCount int) ([]*Node, bool, error) {
+type damageActionDesc struct {
+	nodesToAffect      []*Node
+	action             bool
+	nodesUpBeforeCount int
+	nodesUpAfterCount  int
+}
+
+func computeDamageAction(cluster *Cluster, desiredUpNodeCount int) (damageActionDesc, error) {
 
 	if nodes, splitIndex, err := cluster.NodesByState(); err != nil {
-		return nil, true, err
+		return damageActionDesc{}, err
 	} else {
 		var countDiff = desiredUpNodeCount - splitIndex
 
@@ -337,7 +344,12 @@ func computeDamageAction(cluster *Cluster, desiredUpNodeCount int) ([]*Node, boo
 		var needUp bool
 
 		if countDiff == 0 {
-			return []*Node{}, true, nil
+			return damageActionDesc{
+				nodesToAffect:      []*Node{},
+				action:             true,
+				nodesUpBeforeCount: splitIndex,
+				nodesUpAfterCount:  splitIndex,
+			}, nil
 		} else if countDiff < 0 {
 			nodesToAffect = nodes[0:splitIndex]
 			needUp = false
@@ -366,7 +378,12 @@ func computeDamageAction(cluster *Cluster, desiredUpNodeCount int) ([]*Node, boo
 			result = append(result, nodesToAffect[idx])
 		}
 
-		return result, needUp, nil
+		return damageActionDesc{
+			nodesToAffect:      result,
+			action:             needUp,
+			nodesUpBeforeCount: splitIndex,
+			nodesUpAfterCount:  splitIndex + countDiff,
+		}, nil
 	}
 }
 
@@ -383,13 +400,13 @@ func (self *Controller) Damage(clusterName string, nodesCountStr string) error {
 		return err
 	} else if desiredUpNodeCount, err := determineDesiredUpNodeCount(cluster.NodesCount(), nodesCountStr); err != nil {
 		return err
-	} else if nodesToAffect, action, err := computeDamageAction(cluster, desiredUpNodeCount); err != nil {
+	} else if actionDesc, err := computeDamageAction(cluster, desiredUpNodeCount); err != nil {
 		return err
-	} else if len(nodesToAffect) < 1 {
+	} else if nodesToAffectCount := len(actionDesc.nodesToAffect); nodesToAffectCount < 1 {
 		self.view.Echo("Nothing to do. Cluster already in specified state")
-	} else if self.view.Ask("Will %s %v nodes. Proceed?", actionName(action), len(nodesToAffect)) {
-		for _, node := range nodesToAffect {
-			if action {
+	} else if self.view.Ask("Will %s %v nodes. The final cluster will consist of %v up nodes (out of %v). Proceed?", actionName(actionDesc.action), nodesToAffectCount, actionDesc.nodesUpAfterCount, len(cluster.nodes)) {
+		for _, node := range actionDesc.nodesToAffect {
+			if actionDesc.action {
 				if err := node.Start(); err != nil {
 					return err
 				}
@@ -400,7 +417,7 @@ func (self *Controller) Damage(clusterName string, nodesCountStr string) error {
 			}
 		}
 
-		self.view.Success("Affected %v nodes", len(nodesToAffect))
+		self.view.Success("Affected %v nodes", nodesToAffectCount)
 	}
 
 	return nil

@@ -179,7 +179,7 @@ func main() {
 				},
 			},
 			Action: func(c *cli.Context) {
-				err := controller.Damage(first(c.Args()), c.String("count"))
+				err := controller.Damage(first(c.Args()), c.String("nodes"))
 				printError(err)
 			},
 		},
