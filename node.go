@@ -12,6 +12,8 @@ import (
 	"syscall"
 )
 
+var ProcessNotRunningError = errors.New("Process is not running")
+
 type NodeAddress struct {
 	Ip   string
 	Port int
@@ -92,13 +94,16 @@ func (self *Node) KillWithSignal(signal string) error {
 	pid, err := self.Pid()
 
 	if err != nil {
-		panic(err)
-		// TODO: Make proper error handling
+		return err
+	}
+
+	if pid < 1 {
+		return ProcessNotRunningError
 	}
 
 	binary := self.binaries.Kill()
-
-	return exec.Command(binary, "-s", signal, strconv.Itoa(pid)).Run()
+	pidStr := strconv.Itoa(pid)
+	return exec.Command(binary, "-s", signal, pidStr).Run()
 }
 
 func (self *Node) clientArgs(args []string) []string {

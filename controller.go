@@ -3,11 +3,15 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"os/exec"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -26,6 +30,9 @@ var (
 	IllegalClusterNameError  = fmt.Errorf(
 		"Illegal cluster name. The name should match %v",
 		clusterNameRegEx)
+	CountDescriptionRequiredError = errors.New("Nodes count is required")
+	IllegalPercentValueError      = errors.New("Illegal percent value. Should be in rage 0..100")
+	ClusterIsDownError            = errors.New("All cluster nodes are down")
 )
 
 func ClusterExistsError(clusterName string) error {
@@ -37,7 +44,7 @@ func ClusterDoesNotExistError(clusterName string) error {
 }
 
 func IllegalReplicaCount(clusterNodeCount int) error {
-	return fmt.Errorf("Number of replicas should be greater then zero and less then node count(%v)", clusterNodeCount)
+	return fmt.Errorf("Number of replicas should be in range 0..%v", clusterNodeCount)
 }
 
 func TooFewNumberOfNodesError() error {
@@ -46,6 +53,10 @@ func TooFewNumberOfNodesError() error {
 
 func PortOutOfRangeError(maxPort int) error {
 	return fmt.Errorf("Start port out of range of allowed ports (1-%v)", maxPort)
+}
+
+func IllegalNodeCount(availableNodeCount int) error {
+	return fmt.Errorf("Node count should be in range 1..%v (up nodes)", availableNodeCount)
 }
 
 type CreateProperties struct {
@@ -69,7 +80,7 @@ type Controller struct {
 	clusterSet *ClusterSet
 }
 
-type clusterCmdSupplier func(*Cluster) *exec.Cmd
+type clusterCmdSupplier func(*Cluster) (*exec.Cmd, error)
 
 func (self *Controller) Create(clusterName string, props CreateProperties) error {
 
@@ -285,29 +296,170 @@ func (self *Controller) Ps(clusterName string, short bool) error {
 	}
 }
 
+func determineDesiredUpNodeCount(clusterSize int, desiredCountDesc string) (int, error) {
+	desiredCountDesc = strings.TrimSpace(desiredCountDesc)
+
+	if len(desiredCountDesc) < 1 {
+		return -1, CountDescriptionRequiredError
+	}
+
+	var isPercent = desiredCountDesc[len(desiredCountDesc)-1] == '%'
+
+	if isPercent && len(desiredCountDesc) < 2 {
+		return -1, CountDescriptionRequiredError
+	}
+
+	if isPercent {
+		if percent, err := strconv.ParseFloat(desiredCountDesc[:len(desiredCountDesc)-1], 32); err != nil || percent < 0 || percent > 100 {
+			return -1, IllegalPercentValueError
+		} else {
+			return int(math.Ceil(float64(clusterSize) * percent / 100.0)), nil
+		}
+	} else {
+		if count, err := strconv.Atoi(desiredCountDesc); err != nil || count < 1 || count > clusterSize {
+			return -1, IllegalNodeCount(clusterSize)
+		} else {
+			return count, nil
+		}
+	}
+}
+
+type damageActionDesc struct {
+	nodesToAffect      []*Node
+	action             bool
+	nodesUpBeforeCount int
+	nodesUpAfterCount  int
+}
+
+func computeDamageAction(cluster *Cluster, desiredUpNodeCount int) (damageActionDesc, error) {
+
+	if nodes, splitIndex, err := cluster.NodesByState(); err != nil {
+		return damageActionDesc{}, err
+	} else {
+		var countDiff = desiredUpNodeCount - splitIndex
+
+		var r = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		var nodesToAffect []*Node
+		var needUp bool
+
+		if countDiff == 0 {
+			return damageActionDesc{
+				nodesToAffect:      []*Node{},
+				action:             true,
+				nodesUpBeforeCount: splitIndex,
+				nodesUpAfterCount:  splitIndex,
+			}, nil
+		} else if countDiff < 0 {
+			nodesToAffect = nodes[0:splitIndex]
+			needUp = false
+		} else if countDiff > 0 {
+			nodesToAffect = nodes[splitIndex:]
+			needUp = true
+		}
+
+		var randomIndexesCount int
+
+		if countDiff < 0 {
+			randomIndexesCount = -countDiff
+		} else {
+			randomIndexesCount = countDiff
+		}
+
+		randomIndexes := make(map[int]bool, randomIndexesCount)
+
+		for len(randomIndexes) < randomIndexesCount {
+			randomIndexes[r.Intn(len(nodesToAffect))] = true
+		}
+
+		var result = nodesToAffect[:0]
+
+		for idx, _ := range randomIndexes {
+			result = append(result, nodesToAffect[idx])
+		}
+
+		return damageActionDesc{
+			nodesToAffect:      result,
+			action:             needUp,
+			nodesUpBeforeCount: splitIndex,
+			nodesUpAfterCount:  splitIndex + countDiff,
+		}, nil
+	}
+}
+
+func (self *Controller) Damage(clusterName string, nodesCountStr string) error {
+	actionName := func(action bool) string {
+		if action {
+			return green("start")
+		} else {
+			return red("stop")
+		}
+	}
+
+	if cluster, err := self.openCluster(clusterName); err != nil {
+		return err
+	} else if desiredUpNodeCount, err := determineDesiredUpNodeCount(cluster.NodesCount(), nodesCountStr); err != nil {
+		return err
+	} else if actionDesc, err := computeDamageAction(cluster, desiredUpNodeCount); err != nil {
+		return err
+	} else if nodesToAffectCount := len(actionDesc.nodesToAffect); nodesToAffectCount < 1 {
+		self.view.Echo("Nothing to do. Cluster already in specified state")
+	} else if self.view.Ask("Will %s %v nodes. The final cluster will consist of %v up nodes (out of %v). Proceed?", actionName(actionDesc.action), nodesToAffectCount, actionDesc.nodesUpAfterCount, len(cluster.nodes)) {
+		for _, node := range actionDesc.nodesToAffect {
+			if actionDesc.action {
+				if err := node.Start(); err != nil {
+					return err
+				}
+			} else {
+				if err := node.Stop(); err != nil {
+					return err
+				}
+			}
+		}
+
+		self.view.Success("Affected %v nodes", nodesToAffectCount)
+	}
+
+	return nil
+}
+
 func (self *Controller) Info(clusterName string) error {
-	return self.execClusterCmd(clusterName, func(cluster *Cluster) *exec.Cmd {
-		return cluster.RandomNode().ClusterInfo()
+	return self.execClusterCmd(clusterName, func(cluster *Cluster) (*exec.Cmd, error) {
+		if node, err := cluster.RandomNode(true); err != nil {
+			return nil, err
+		} else {
+			return node.ClusterInfo(), nil
+		}
 	})
 }
 
 func (self *Controller) Nodes(clusterName string) error {
-	return self.execClusterCmd(clusterName, func(cluster *Cluster) *exec.Cmd {
-		return cluster.RandomNode().ClusterNodes()
+	return self.execClusterCmd(clusterName, func(cluster *Cluster) (*exec.Cmd, error) {
+		if node, err := cluster.RandomNode(true); err != nil {
+			return nil, err
+		} else {
+			return node.ClusterNodes(), nil
+		}
 	})
 }
 
 func (self *Controller) Slots(clusterName string) error {
-	return self.execClusterCmd(clusterName, func(cluster *Cluster) *exec.Cmd {
-		return cluster.RandomNode().ClusterSlots()
+	return self.execClusterCmd(clusterName, func(cluster *Cluster) (*exec.Cmd, error) {
+		if node, err := cluster.RandomNode(true); err != nil {
+			return nil, err
+		} else {
+			return node.ClusterSlots(), nil
+		}
 	})
 }
 
 func (self *Controller) Cli(clusterName string, args []string) error {
 	if cluster, err := self.openCluster(clusterName); err != nil {
 		return err
+	} else if node, err := cluster.RandomNode(true); err != nil {
+		return err
 	} else {
-		return cluster.RandomNode().Cli(args...)
+		return node.Cli(args...)
 	}
 }
 
@@ -326,7 +478,9 @@ func (self *Controller) openCluster(clusterName string) (*Cluster, error) {
 func (self *Controller) execClusterCmd(clusterName string, f clusterCmdSupplier) error {
 	if cluster, err := self.openCluster(clusterName); err != nil {
 		return err
-	} else if b, err := f(cluster).Output(); err != nil {
+	} else if cmd, err := f(cluster); err != nil {
+		return err
+	} else if b, err := cmd.Output(); err != nil {
 		return err
 	} else {
 		_, err := os.Stdout.Write(b)

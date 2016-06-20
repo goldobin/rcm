@@ -11,10 +11,6 @@ Add `cli-each` command which will perform the same operation on each known clust
 
 Add master/slave count info to the `list` output
 
-Implement `damage` command
- 
-Implement `recover` command
-
 Investigate the ways of distributing application (brew, rpm, deb)
 
 Add reasonable ENV vars to override defaults
