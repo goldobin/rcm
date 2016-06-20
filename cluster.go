@@ -174,7 +174,7 @@ func (self *Cluster) PrepareSlotDistribution(replicas int) []Shard {
 
 	nodesCount := len(self.nodes)
 
-	if nodesWithDataCount >= nodesCount {
+	if nodesWithDataCount > nodesCount {
 		panic("Number of replicas should be less then nodes count")
 	}
 
